@@ -1,0 +1,55 @@
+import api from './api';
+import { 
+  Attendance, 
+  CreateAttendanceData, 
+  UpdateAttendanceData, 
+  AttendanceFilterParams 
+} from '../types';
+
+export const attendanceService = {
+  // Get all attendance records with optional filters
+  getAllAttendance: async (params?: AttendanceFilterParams): Promise<Attendance[]> => {
+    const response = await api.get('/attendance', { params });
+    return response.data.data;
+  },
+
+  // Get teacher's attendance records
+  getTeacherAttendance: async (params?: AttendanceFilterParams): Promise<Attendance[]> => {
+    const response = await api.get('/attendance', { params });
+    return response.data.data;
+  },
+
+  // Get a single attendance record by ID
+  getAttendanceById: async (id: string): Promise<Attendance> => {
+    const response = await api.get(`/attendance/${id}`);
+    return response.data.data;
+  },
+
+  // Create a new attendance record
+  createAttendance: async (data: CreateAttendanceData): Promise<Attendance> => {
+    const response = await api.post('/attendance', data);
+    return response.data.data;
+  },
+
+  // Update an existing attendance record
+  updateAttendance: async (id: string, data: UpdateAttendanceData): Promise<Attendance> => {
+    const response = await api.put(`/attendance/${id}`, data);
+    return response.data.data;
+  },
+
+  // Submit an attendance record
+  submitAttendance: async (id: string): Promise<Attendance> => {
+    const response = await api.put(`/attendance/${id}/submit`, {});
+    return response.data.data;
+  },
+
+  // Delete an attendance record
+  deleteAttendance: async (id: string): Promise<void> => {
+    await api.delete(`/attendance/${id}`);
+  },
+
+  async verifyAttendance(id: string): Promise<Attendance> {
+    const response = await api.put(`/attendance/${id}/verify`);
+    return response.data.data;
+  }
+}; 
