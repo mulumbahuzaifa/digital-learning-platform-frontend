@@ -161,10 +161,13 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
   });
 
   // Fetch subjects data
-  const { data: subjects, isLoading: loadingSubjects } = useQuery({
+  const { data: subjectsResponse, isLoading: loadingSubjects } = useQuery({
     queryKey: ['subjects'],
     queryFn: () => subjectService.getAllSubjects(),
   });
+  
+  // Extract subjects array from the response
+  const subjects = subjectsResponse?.data || [];
 
   // Watch class to handle dependencies
   const watchedClass = watch('class');

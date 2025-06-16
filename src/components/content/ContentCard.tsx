@@ -141,10 +141,12 @@ export const ContentCard = ({
   const subjectName =
     typeof content.subject === "string"
       ? content.subject
-      : content.subject.name;
+      : content.subject?.name || "No Subject";
 
   const className =
-    typeof content.class === "string" ? content.class : content.class.name;
+    typeof content.class === "string" 
+      ? content.class 
+      : content.class?.name || "No Class";
 
   return (
     <Card

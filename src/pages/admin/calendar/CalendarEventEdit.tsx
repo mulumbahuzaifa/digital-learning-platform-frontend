@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Card, Flex, Button } from '@radix-ui/themes';
+import { Card, Flex, Button, Heading, Container, Box, Theme, Separator, Text } from '@radix-ui/themes';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeftIcon } from '@radix-ui/react-icons';
+import { ChevronLeftIcon, CalendarIcon, Pencil1Icon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useCalendarMutation } from '../../../hooks/useCalendarMutation';
 import { calendarService } from '../../../services/calendarService';
@@ -36,44 +36,72 @@ const CalendarEventEdit = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return (
+      <Theme appearance="light">
+        <Container size="3">
+          <Card size="4">
+            <Flex direction="column" gap="4" align="center" justify="center" py="6">
+              <LoadingSpinner />
+              <Text size="2" color="gray">Loading event details...</Text>
+            </Flex>
+          </Card>
+        </Container>
+      </Theme>
+    );
   }
 
   if (!event) {
     return (
-      <Card size="4">
-        <Flex direction="column" gap="4" align="center" justify="center">
-          <p>Event not found</p>
-          <Button onClick={() => navigate('/admin/calendar')}>
-            Back to Calendar
-          </Button>
-        </Flex>
-      </Card>
+      <Theme appearance="light">
+        <Container size="3">
+          <Card size="4">
+            <Flex direction="column" gap="4" align="center" justify="center" py="6">
+              <Text size="3" weight="medium">Event not found</Text>
+              <Button onClick={() => navigate('/admin/calendar')} size="2">
+                <ChevronLeftIcon /> Back to Calendar
+              </Button>
+            </Flex>
+          </Card>
+        </Container>
+      </Theme>
     );
   }
 
   return (
-    <Card size="4">
-      <Flex direction="column" gap="4">
-        <Flex>
-          <Button 
-            size="1" 
-            variant="ghost" 
-            onClick={() => navigate('/admin/calendar')}
-          >
-            <ChevronLeftIcon /> Back to Calendar
-          </Button>
-        </Flex>
-        
-        <CalendarEventForm
-          mode="edit"
-          initialData={event}
-          onSubmit={handleSubmit}
-          isSubmitting={isSubmitting}
-        />
-      </Flex>
-    </Card>
+    <Theme appearance="light">
+      <Container size="3">
+        <Card size="4">
+          <Flex direction="column" gap="4">
+            {/* Header */}
+            <Flex justify="between" align="center">
+              <Flex align="center" gap="2">
+                <Pencil1Icon width="20" height="20" />
+                <Heading size="4">Edit Event: {event.title}</Heading>
+              </Flex>
+              <Button 
+                size="2" 
+                variant="soft" 
+                onClick={() => navigate('/admin/calendar')}
+              >
+                <ChevronLeftIcon /> Back to Calendar
+              </Button>
+            </Flex>
+            
+            <Separator size="4" />
+            
+            <Box py="2">
+              <CalendarEventForm
+                mode="edit"
+                initialData={event}
+                onSubmit={handleSubmit}
+                isSubmitting={isSubmitting}
+              />
+            </Box>
+          </Flex>
+        </Card>
+      </Container>
+    </Theme>
   );
 };
 
-export default CalendarEventEdit; 
+export default CalendarEventEdit;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Card, Flex, Button } from '@radix-ui/themes';
+import { Card, Flex, Button, Heading, Container, Box, Theme, Separator } from '@radix-ui/themes';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeftIcon } from '@radix-ui/react-icons';
+import { ChevronLeftIcon, CalendarIcon } from '@radix-ui/react-icons';
 import { useCalendarMutation } from '../../../hooks/useCalendarMutation';
 import CalendarEventForm from '../../../components/admin/CalendarEventForm';
 import { CreateCalendarEventData, UpdateCalendarEventData } from '../../../types';
@@ -33,29 +33,42 @@ const CalendarEventCreate = () => {
   };
 
   return (
-    <Card size="4">
-      <Flex direction="column" gap="4">
-        <Flex>
-          <Button 
-            size="1" 
-            variant="ghost" 
-            onClick={() => navigate('/admin/calendar')}
-          >
-            <ChevronLeftIcon /> Back to Calendar
-          </Button>
-        </Flex>
-        
-        <CalendarEventForm
-          mode="create"
-          onSubmit={handleSubmit}
-          isSubmitting={isSubmitting}
-          initialStartDate={initialState?.start}
-          initialEndDate={initialState?.end}
-          initialAllDay={initialState?.allDay}
-        />
-      </Flex>
-    </Card>
+    <Theme appearance="light">
+      <Container size="3">
+        <Card size="4">
+          <Flex direction="column" gap="4">
+            {/* Header */}
+            <Flex justify="between" align="center">
+              <Flex align="center" gap="2">
+                <CalendarIcon width="20" height="20" />
+                <Heading size="4">Create New Event</Heading>
+              </Flex>
+              <Button 
+                size="2" 
+                variant="soft" 
+                onClick={() => navigate('/admin/calendar')}
+              >
+                <ChevronLeftIcon /> Back to Calendar
+              </Button>
+            </Flex>
+            
+            <Separator size="4" />
+            
+            <Box py="2">
+              <CalendarEventForm
+                mode="create"
+                onSubmit={handleSubmit}
+                isSubmitting={isSubmitting}
+                initialStartDate={initialState?.start}
+                initialEndDate={initialState?.end}
+                initialAllDay={initialState?.allDay}
+              />
+            </Box>
+          </Flex>
+        </Card>
+      </Container>
+    </Theme>
   );
 };
 
-export default CalendarEventCreate; 
+export default CalendarEventCreate;

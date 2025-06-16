@@ -1,7 +1,7 @@
 // import { RouteObject } from "react-router-dom";
 
 // User types
-export type UserRole = "admin" | "teacher" | "student";
+export type UserRole = "admin" | "teacher" | "student" | "parent";
 export type RegisterableRole = "teacher" | "student";
 
 export type AcademicTerm = "Term 1" | "Term 2" | "Term 3";
@@ -818,6 +818,88 @@ export interface CalendarEventFilterParams {
   startDate?: string;
   endDate?: string;
   type?: string;
+}
+
+// Live Session types
+export type LiveSessionStatus = "scheduled" | "live" | "ended";
+
+export interface LiveSessionParticipant {
+  user: string | User;
+  joinedAt: string;
+}
+
+export interface LiveSessionChatMessage {
+  user: string | User;
+  message: string;
+  timestamp: string;
+}
+
+export interface LiveSessionSettings {
+  enableChat: boolean;
+  enableRecording: boolean;
+  enableScreenSharing: boolean;
+}
+
+export interface LiveSession {
+  _id: string;
+  title: string;
+  description?: string;
+  teacher: string | User;
+  class: string | Class;
+  subject: string | Subject;
+  startTime: string;
+  duration: number;
+  status: LiveSessionStatus;
+  meetingId: string;
+  meetingPassword: string;
+  meetingUrl?: string;
+  participants: LiveSessionParticipant[];
+  recordingUrl?: string;
+  chat: LiveSessionChatMessage[];
+  settings: LiveSessionSettings;
+  createdAt: string;
+  updatedAt: string;
+  endTime?: string;
+  isActive?: boolean;
+}
+
+export interface CreateLiveSessionData {
+  title: string;
+  description?: string;
+  class: string;
+  subject: string;
+  startTime: string;
+  duration: number;
+  settings?: {
+    enableChat?: boolean;
+    enableRecording?: boolean;
+    enableScreenSharing?: boolean;
+  };
+}
+
+export interface UpdateLiveSessionData {
+  title?: string;
+  description?: string;
+  startTime?: string;
+  duration?: number;
+  settings?: {
+    enableChat?: boolean;
+    enableRecording?: boolean;
+    enableScreenSharing?: boolean;
+  };
+}
+
+export interface LiveSessionFilterParams {
+  class?: string;
+  subject?: string;
+  status?: LiveSessionStatus;
+  teacher?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface AddChatMessageData {
+  message: string;
 }
 
 // Feedback types

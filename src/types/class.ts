@@ -92,76 +92,83 @@ export interface Class {
   updatedAt: string;
 }
 
-// Types for student's view of a class
-export interface StudentClass extends Omit<Class, "subjects"> {
-  code: string;
-  level: string;
-  subjects: {
-    subject: {
-      _id: string;
-      name: string;
-      code: string;
-      isActive: boolean;
-      schedule?: {
-        day:
-          | "Monday"
-          | "Tuesday"
-          | "Wednesday"
-          | "Thursday"
-          | "Friday"
-          | "Saturday"
-          | "Sunday";
-        startTime: string;
-        endTime: string;
-        venue: string;
-      };
-    }[];
-    teachers: {
-      teacher: {
-        _id: string;
-        firstName: string;
-        lastName: string;
-      };
-      status: "pending" | "approved" | "rejected";
-      approvedAt?: Date;
-      isLeadTeacher: boolean;
-      assignedBy: string;
-    }[];
-  }[];
-  enrollmentDate: string;
-  students?: {
-    student: {
-      _id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-    }[];
-    enrollmentDate: string;
-  }[];
-}
-
-// Types for teacher's view of a class
-export interface TeacherClass extends Omit<Class, "subjects"> {
-  subjects: {
+export interface EnrolledStudent {
+  student: {
     _id: string;
-    name: string;
-    code: string;
-  }[];
-  currentEnrollments: {
-    student: {
-      _id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-    };
+    firstName: string;
+    lastName: string;
+    email?: string;
+  };
+  enrollmentDetails: {
     academicYear: string;
     term: string;
+    enrollmentDate: string;
     subjects: {
       subject: {
         _id: string;
         name: string;
         code: string;
       };
+      status: string;
+    }[];
+  };
+}
+
+export interface TeacherSubject {
+  _id: string;
+  name: string;
+  code: string;
+  category?: string;
+  subCategory?: string;
+  isActive: boolean;
+}
+
+// Types for teacher's view of a class
+export interface TeacherClass {
+  class: {
+    _id: string;
+    name: string;
+    code: string;
+    level: string;
+    stream: string;
+  };
+  subjects: TeacherSubject[];
+  enrolledStudents: EnrolledStudent[];
+}
+
+// Types for student's view of a class
+export interface StudentClass {
+  _id: string;
+  name: string;
+  code: string;
+  level: string;
+  stream: string;
+  isActive: boolean;
+  enrollmentInfo: {
+    _id: string;
+    academicYear: string;
+    term: string;
+    enrollmentDate: string;
+    status: string;
+  };
+  subjects: {
+    _id: string;
+    name: string;
+    code: string;
+    category?: string;
+    subCategory?: string;
+    isActive: boolean;
+    description?: string;
+    syllabus?: string;
+    enrollmentStatus: string;
+    teachers: {
+      teacher: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        email?: string;
+      };
+      isLeadTeacher: boolean;
       status: string;
     }[];
   }[];

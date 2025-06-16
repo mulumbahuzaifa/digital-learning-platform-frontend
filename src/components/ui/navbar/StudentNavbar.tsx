@@ -23,24 +23,6 @@ export default function StudentNavbar() {
       <div className="px-3 py-3 lg:px-5 lg:pl-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center justify-start">
-            <button
-              type="button"
-              className="lg:hidden inline-flex items-center p-2 text-gray-500 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
-              onClick={() => document.body.classList.toggle("g-sidenav-pinned")}
-            >
-              <svg
-                className="w-6 h-6"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                  clipRule="evenodd"
-                ></path>
-              </svg>
-            </button>
             <Link to="/student/dashboard" className="lg:ml-2 flex items-center">
               <span className="self-center text-xl font-bold text-blue-700 whitespace-nowrap ml-2">
                 NEWSOMA
@@ -138,7 +120,11 @@ export default function StudentNavbar() {
                   className="hover:bg-gray-100 p-1 rounded"
                 >
                   <Avatar
-                    fallback={user?.firstName?.[0] || "S"}
+                    fallback={
+                      user?.firstName && user?.lastName
+                        ? `${user.firstName[0]}${user.lastName[0]}`
+                        : "S"
+                    }
                     size="2"
                     radius="full"
                     color="indigo"
@@ -148,7 +134,12 @@ export default function StudentNavbar() {
                       {user?.firstName} {user?.lastName}
                     </Text>
                     <Text size="1" className="text-gray-500">
-                      {user?.role}
+                      {user?.role === "student" && (
+                        <span className="text-gray-500 ml-2">(Student)</span>
+                      )}
+                      {user?.role === "teacher" && (
+                        <span className="text-gray-500 ml-2">(Teacher)</span>
+                      )}
                     </Text>
                   </Box>
                 </Flex>

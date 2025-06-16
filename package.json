@@ -41,6 +41,7 @@
     "lucide-react": "^0.503.0",
     "react": "^19.0.0",
     "react-big-calendar": "^1.18.0",
+    "react-datetime-picker": "^6.0.1",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.56.1",
     "react-hot-toast": "^2.5.2",

@@ -20,8 +20,24 @@ export const useUserMutation = () => {
   const updateUser = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<UserEditFormData> }) => 
       userService.updateUser(id, data),
-    onSuccess: () => {
+    onSuccess: (updatedUser) => {
       toast.success('User updated successfully');
+      
+      // Show a specific message when a user is verified
+      if (updatedUser && 'isVerified' in updatedUser) {
+        if (updatedUser.isVerified) {
+          toast.success(`User ${updatedUser.firstName} ${updatedUser.lastName} has been verified successfully`, {
+            duration: 5000,
+            icon: '✅',
+          });
+        } else {
+          toast.success(`User ${updatedUser.firstName} ${updatedUser.lastName} has been unverified`, {
+            duration: 5000,
+            icon: '⚠️',
+          });
+        }
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error: Error) => {
@@ -58,4 +74,4 @@ export const useUserMutation = () => {
     deleteUser,
     updateProfile,
   };
-}; 
+};

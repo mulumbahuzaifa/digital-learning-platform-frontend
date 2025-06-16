@@ -1,20 +1,44 @@
 import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import UserDropdown from "../UserDropdown";
-import NotificationDropdown from "../NotificationDropdown";
+import { NavLink, useLocation } from "react-router-dom";
+import {
+  Flex,
+  Box,
+  Text,
+  Separator,
+  ScrollArea,
+  Avatar,
+  Heading,
+  Button,
+  Tooltip,
+} from "@radix-ui/themes";
+import {
+  HomeIcon,
+  PersonIcon,
+  BookmarkIcon,
+  ReaderIcon,
+  CheckCircledIcon,
+  CalendarIcon,
+  ChatBubbleIcon,
+  GearIcon,
+  VideoIcon,
+  HamburgerMenuIcon,
+  Cross2Icon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@radix-ui/react-icons";
+import { useAuth } from "../../../context/AuthProvider";
 
 interface SidebarLinkProps {
   to: string;
-  icon: string;
-  text: string;
+  icon: React.ReactNode;
+  label: string;
+  end?: boolean;
 }
-
-interface SidebarDropdownItem extends SidebarLinkProps {}
 
 interface SidebarDropdownProps {
   title: string;
-  icon: string;
-  items: SidebarDropdownItem[];
+  icon: React.ReactNode;
+  items: SidebarLinkProps[];
 }
 
 const SidebarDropdown: React.FC<SidebarDropdownProps> = ({
@@ -23,239 +47,543 @@ const SidebarDropdown: React.FC<SidebarDropdownProps> = ({
   items,
 }) => {
   const location = useLocation();
-  const isAnyActive = items.some((item) => location.pathname.includes(item.to));
+  const isAnyActive = items.some(
+    (item) =>
+      location.pathname === item.to || location.pathname.startsWith(item.to)
+  );
   const [isOpen, setIsOpen] = useState(isAnyActive);
 
   return (
-    <li className="items-center mb-2">
+    <div className="mb-1">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`text-xs uppercase py-3 font-bold flex items-center w-full ${
+        className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition-all duration-200 border ${
           isAnyActive
-            ? "text-lightBlue-500 hover:text-lightBlue-600"
-            : "text-blueGray-700 hover:text-blueGray-500"
+            ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+            : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
         }`}
       >
-        <i
-          className={`${icon} mr-2 text-sm ${
-            isAnyActive ? "opacity-75" : "text-blueGray-300"
-          }`}
-        ></i>
-        {title}
-        <i
-          className={`fas fa-chevron-${
-            isOpen ? "down" : "right"
-          } ml-auto text-xs`}
-        ></i>
+        <div className="flex items-center gap-3">
+          <div className="flex-shrink-0 text-indigo-600">{icon}</div>
+          <span className="whitespace-nowrap font-medium">{title}</span>
+        </div>
+        <div className="flex-shrink-0">
+          {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+        </div>
       </button>
+
       {isOpen && (
-        <ul className="pl-6 mt-1 mb-2 space-y-1">
+        <div className="pl-4 mt-1 mb-1 space-y-1">
           {items.map((item) => (
-            <SidebarLink key={item.to} {...item} nested={true} />
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 border ${
+                  isActive
+                    ? "bg-gradient-to-r from-indigo-500 to-indigo-400 text-white border-indigo-600 shadow-sm"
+                    : "hover:bg-indigo-50 text-gray-600 border-transparent hover:border-indigo-200"
+                }`
+              }
+            >
+              <div className="flex-shrink-0 text-sm">{item.icon}</div>
+              <span className="whitespace-nowrap text-sm">{item.label}</span>
+            </NavLink>
           ))}
-        </ul>
+        </div>
       )}
-    </li>
+    </div>
   );
 };
 
-const SidebarLink: React.FC<SidebarLinkProps & { nested?: boolean }> = ({
-  to,
-  icon,
-  text,
-  nested = false,
-}) => {
+const StudentSidebar = () => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { user } = useAuth();
   const location = useLocation();
-  const isActive =
-    location.pathname === to ||
-    (to !== "/student" && location.pathname.startsWith(to));
+
+  // Simple links
+  const dashboardLink = {
+    label: "Dashboard",
+    icon: <HomeIcon width={20} height={20} />,
+    to: "/student",
+    end: true,
+  };
+
+  // Dropdowns
+  const classManagement = {
+    title: "My Classes",
+    icon: <BookmarkIcon width={20} height={20} />,
+    items: [
+      {
+        label: "All Classes",
+        icon: <BookmarkIcon width={16} height={16} />,
+        to: "/student/classes",
+      },
+      {
+        label: "Class Schedule",
+        icon: <CalendarIcon width={16} height={16} />,
+        to: "/student/classes/schedule",
+      },
+    ],
+  };
+
+  const assignmentManagement = {
+    title: "Assignments",
+    icon: <ReaderIcon width={20} height={20} />,
+    items: [
+      {
+        label: "All Assignments",
+        icon: <ReaderIcon width={16} height={16} />,
+        to: "/student/assignments",
+      },
+      {
+        label: "Pending",
+        icon: <ReaderIcon width={16} height={16} />,
+        to: "/student/assignments/pending",
+      },
+      {
+        label: "Completed",
+        icon: <CheckCircledIcon width={16} height={16} />,
+        to: "/student/assignments/completed",
+      },
+    ],
+  };
+
+  const contentManagement = {
+    title: "Learning Content",
+    icon: <ReaderIcon width={20} height={20} />,
+    items: [
+      {
+        label: "All Content",
+        icon: <ReaderIcon width={16} height={16} />,
+        to: "/student/content",
+      },
+      {
+        label: "By Subject",
+        icon: <BookmarkIcon width={16} height={16} />,
+        to: "/student/content/subjects",
+      },
+    ],
+  };
+
+  const liveSessionManagement = {
+    title: "Live Sessions",
+    icon: <VideoIcon width={20} height={20} />,
+    items: [
+      {
+        label: "Upcoming Sessions",
+        icon: <VideoIcon width={16} height={16} />,
+        to: "/student/live-sessions",
+      },
+      {
+        label: "Recordings",
+        icon: <VideoIcon width={16} height={16} />,
+        to: "/student/live-sessions/recordings",
+      },
+    ],
+  };
+
+  // Simple links
+  const simpleLinks = [
+    {
+      label: "Grades",
+      icon: <CheckCircledIcon width={20} height={20} />,
+      to: "/student/grades",
+    },
+    {
+      label: "Attendance",
+      icon: <CheckCircledIcon width={20} height={20} />,
+      to: "/student/attendance",
+    },
+    {
+      label: "Calendar",
+      icon: <CalendarIcon width={20} height={20} />,
+      to: "/student/calendar",
+    },
+    {
+      label: "Messages",
+      icon: <ChatBubbleIcon width={20} height={20} />,
+      to: "/student/messages",
+    },
+  ];
+
+  const accountLinks = [
+    {
+      label: "Profile",
+      icon: <PersonIcon width={20} height={20} />,
+      to: "/student/profile",
+    },
+    {
+      label: "Settings",
+      icon: <GearIcon width={20} height={20} />,
+      to: "/student/settings",
+    },
+  ];
+
+  const toggleSidebar = () => {
+    setCollapsed(!collapsed);
+  };
+
+  const toggleMobileSidebar = () => {
+    setMobileOpen(!mobileOpen);
+  };
 
   return (
-    <li className={`items-center ${nested ? "" : "mb-2"}`}>
-      <Link
-        to={to}
-        className={`text-xs uppercase py-2 font-bold block ${
-          isActive
-            ? "text-lightBlue-500 hover:text-lightBlue-600"
-            : "text-blueGray-700 hover:text-blueGray-500"
-        }`}
+    <>
+      {/* Mobile Menu Button */}
+      <Button
+        className="md:hidden fixed top-4 left-4 z-50"
+        variant="soft"
+        onClick={toggleMobileSidebar}
+        size="2"
       >
-        <i
-          className={`${icon} mr-2 text-sm ${
-            isActive ? "opacity-75" : "text-blueGray-300"
-          }`}
-        ></i>
-        {text}
-      </Link>
-    </li>
-  );
-};
+        {mobileOpen ? <Cross2Icon /> : <HamburgerMenuIcon />}
+      </Button>
 
-const StudentSidebar: React.FC = () => {
-  const [collapseShow, setCollapseShow] = useState<string>("hidden");
-
-  return (
-    <nav className="md:left-0 md:block md:fixed md:top-0 md:bottom-0 md:overflow-y-auto md:flex-row md:flex-nowrap md:overflow-hidden shadow-xl bg-white flex flex-wrap items-center justify-between relative md:w-64 z-10 py-4 px-6">
-      <div className="md:flex-col md:items-stretch md:min-h-full md:flex-nowrap px-0 flex flex-wrap items-center justify-between w-full mx-auto">
-        {/* Toggler */}
-        <button
-          className="cursor-pointer text-black opacity-50 md:hidden px-3 py-1 text-xl leading-none bg-transparent rounded border border-solid border-transparent"
-          type="button"
-          onClick={() => setCollapseShow("bg-white m-2 py-3 px-6")}
-        >
-          <i className="fas fa-bars"></i>
-        </button>
-
-        {/* Brand */}
-        <Link
-          to="/student"
-          className="md:block text-left md:pb-2 text-blueGray-600 mr-0 inline-block whitespace-nowrap text-sm uppercase font-bold p-4 px-0"
-        >
-          NEWSOMA
-        </Link>
-
-        {/* User */}
-        <ul className="md:hidden items-center flex flex-wrap list-none">
-          <li className="inline-block relative">
-            <NotificationDropdown />
-          </li>
-          <li className="inline-block relative">
-            <UserDropdown />
-          </li>
-        </ul>
-
-        {/* Collapse */}
+      {/* Mobile Overlay */}
+      {mobileOpen && (
         <div
-          className={`md:flex md:flex-col md:items-stretch md:opacity-100 md:relative md:mt-4 md:shadow-none shadow absolute top-0 left-0 right-0 z-40 overflow-y-auto overflow-x-hidden h-auto items-center flex-1 rounded ${collapseShow}`}
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={toggleMobileSidebar}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed top-0 left-0 h-full bg-white shadow-lg z-40
+          transition-all duration-300 ease-in-out
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full"} 
+          ${collapsed ? "w-20" : "w-64"}
+          md:translate-x-0
+        `}
+      >
+        <Flex
+          direction="column"
+          className="h-full"
+          style={{ borderRight: "1px solid var(--gray-5)" }}
         >
-          {/* Collapse header */}
-          <div className="md:min-w-full md:hidden block pb-4 mb-4 border-b border-solid border-blueGray-200">
-            <div className="flex flex-wrap">
-              <div className="w-6/12">
-                <Link
-                  to="/student"
-                  className="md:block text-left md:pb-2 text-blueGray-600 mr-0 inline-block whitespace-nowrap text-sm uppercase font-bold p-4 px-0"
-                >
-                  NEWSOMA
-                </Link>
-              </div>
-              <div className="w-6/12 flex justify-end">
-                <button
-                  type="button"
-                  className="cursor-pointer text-black opacity-50 md:hidden px-3 py-1 text-xl leading-none bg-transparent rounded border border-solid border-transparent"
-                  onClick={() => setCollapseShow("hidden")}
-                >
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* Header with Logo */}
+          <Box p="4" className="border-b border-gray-200">
+            <Flex align="center" justify="between" gap="3">
+              {!collapsed && (
+                <Heading size="5" className="text-indigo-600">
+                  Student Portal
+                </Heading>
+              )}
+              <Button
+                variant="ghost"
+                size="1"
+                className="hidden md:flex"
+                onClick={toggleSidebar}
+              >
+                {collapsed ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                )}
+              </Button>
+            </Flex>
+          </Box>
 
-          {/* Form */}
-          <form className="mt-6 mb-4 md:hidden">
-            <div className="mb-3 pt-0">
-              <input
-                type="text"
-                placeholder="Search"
-                className="border-0 px-3 py-2 h-12 border border-solid border-blueGray-500 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-base leading-snug shadow-none outline-none focus:outline-none w-full font-normal"
+          {/* User Profile */}
+          <Box p="4" className="border-b border-gray-200">
+            <Flex
+              align="center"
+              gap="3"
+              justify={collapsed ? "center" : "start"}
+            >
+              <Avatar
+                size={collapsed ? "3" : "4"}
+                src={user?.profile?.avatar || undefined}
+                fallback={
+                  user?.firstName && user?.lastName
+                    ? `${user.firstName[0]}${user.lastName[0]}`
+                    : "S"
+                }
+                radius="full"
               />
-            </div>
-          </form>
-
-          {/* Divider */}
-          <hr className="my-4 md:min-w-full" />
+              {!collapsed && (
+                <Box>
+                  <Text weight="bold">
+                    {user?.firstName} {user?.lastName}
+                  </Text>
+                  <Text size="1" className="text-gray-500">
+                    {user?.role === "student" && (
+                      <span className="text-gray-500 ml-2">(Student)</span>
+                    )}
+                  </Text>
+                </Box>
+              )}
+            </Flex>
+          </Box>
 
           {/* Navigation */}
-          <ul className="md:flex-col md:min-w-full flex flex-col list-none">
-            {/* Dashboard */}
-            <SidebarLink
-              to="/student"
-              icon="fas fa-tachometer-alt"
-              text="Dashboard"
-            />
+          <ScrollArea className="flex-grow" type="hover">
+            <Box p="2">
+              {/* Dashboard Link */}
+              {!collapsed ? (
+                <NavLink
+                  to={dashboardLink.to}
+                  end={dashboardLink.end}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 border mb-2 ${
+                      isActive
+                        ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white border-indigo-700 shadow-md"
+                        : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                    }`
+                  }
+                >
+                  <div className="flex-shrink-0">{dashboardLink.icon}</div>
+                  <span className="whitespace-nowrap font-medium">
+                    {dashboardLink.label}
+                  </span>
+                </NavLink>
+              ) : (
+                <Tooltip content="Dashboard" side="right">
+                  <NavLink
+                    to={dashboardLink.to}
+                    end={dashboardLink.end}
+                    className={({ isActive }) =>
+                      `flex items-center justify-center p-3 rounded-lg transition-all duration-200 border mb-2 ${
+                        isActive
+                          ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white border-indigo-700 shadow-md"
+                          : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                      }`
+                    }
+                  >
+                    <div className="flex-shrink-0">{dashboardLink.icon}</div>
+                  </NavLink>
+                </Tooltip>
+              )}
 
-            {/* Academic */}
-            <div className="mt-4 mb-2">
-              <h6 className="md:min-w-full text-xs uppercase font-bold block pt-1 pb-2 no-underline text-blueGray-500">
-                Academic
-              </h6>
-            </div>
+              {/* Section: Academic */}
+              <div className="mt-4 mb-2">
+                {!collapsed && (
+                  <Text
+                    size="1"
+                    weight="bold"
+                    color="gray"
+                    className="px-4 uppercase"
+                  >
+                    Academic
+                  </Text>
+                )}
+                <Separator my="2" size="4" />
+              </div>
 
-            <SidebarLink
-              to="/student/classes"
-              icon="fas fa-chalkboard"
-              text="My Classes"
-            />
+              {/* Dropdowns or Collapsed Icons */}
+              {!collapsed ? (
+                <>
+                  <SidebarDropdown {...classManagement} />
+                  <SidebarDropdown {...assignmentManagement} />
+                  <SidebarDropdown {...contentManagement} />
+                  <SidebarDropdown {...liveSessionManagement} />
+                </>
+              ) : (
+                <>
+                  {/* Collapsed Class Management */}
+                  <Tooltip content="My Classes" side="right">
+                    <div className="mb-2">
+                      <button
+                        className={`flex items-center justify-center p-3 rounded-lg transition-all duration-200 border w-full ${
+                          location.pathname.includes("/student/classes")
+                            ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                            : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                        }`}
+                      >
+                        {classManagement.icon}
+                      </button>
+                    </div>
+                  </Tooltip>
 
-            <SidebarDropdown
-              title="Assignments"
-              icon="fas fa-tasks"
-              items={[
-                {
-                  to: "/student/assignments",
-                  text: "All Assignments",
-                  icon: "fas fa-clipboard-list",
-                },
-                {
-                  to: "/student/submissions",
-                  text: "My Submissions",
-                  icon: "fas fa-file-upload",
-                },
-              ]}
-            />
+                  {/* Collapsed Assignment Management */}
+                  <Tooltip content="Assignments" side="right">
+                    <div className="mb-2">
+                      <button
+                        className={`flex items-center justify-center p-3 rounded-lg transition-all duration-200 border w-full ${
+                          location.pathname.includes("/student/assignments")
+                            ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                            : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                        }`}
+                      >
+                        {assignmentManagement.icon}
+                      </button>
+                    </div>
+                  </Tooltip>
 
-            <SidebarLink
-              to="/student/grades"
-              icon="fas fa-graduation-cap"
-              text="Grades"
-            />
+                  {/* Collapsed Content Management */}
+                  <Tooltip content="Learning Content" side="right">
+                    <div className="mb-2">
+                      <button
+                        className={`flex items-center justify-center p-3 rounded-lg transition-all duration-200 border w-full ${
+                          location.pathname.includes("/student/content")
+                            ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                            : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                        }`}
+                      >
+                        {contentManagement.icon}
+                      </button>
+                    </div>
+                  </Tooltip>
 
-            <SidebarLink
-              to="/student/attendance"
-              icon="fas fa-clipboard-check"
-              text="Attendance"
-            />
+                  {/* Collapsed Live Session Management */}
+                  <Tooltip content="Live Sessions" side="right">
+                    <div className="mb-2">
+                      <button
+                        className={`flex items-center justify-center p-3 rounded-lg transition-all duration-200 border w-full ${
+                          location.pathname.includes("/student/live-sessions")
+                            ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                            : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                        }`}
+                      >
+                        {liveSessionManagement.icon}
+                      </button>
+                    </div>
+                  </Tooltip>
+                </>
+              )}
 
-            <SidebarDropdown
-              title="Learning Content"
-              icon="fas fa-file-alt"
-              items={[
-                {
-                  to: "/student/content",
-                  text: "All Content",
-                  icon: "fas fa-folder",
-                },
-              ]}
-            />
+              {/* Simple Links */}
+              {!collapsed
+                ? simpleLinks.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 border mb-2 ${
+                          isActive
+                            ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white border-indigo-700 shadow-md"
+                            : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                        }`
+                      }
+                    >
+                      <div className="flex-shrink-0">{item.icon}</div>
+                      <span className="whitespace-nowrap font-medium">
+                        {item.label}
+                      </span>
+                    </NavLink>
+                  ))
+                : simpleLinks.map((item) => (
+                    <Tooltip key={item.to} content={item.label} side="right">
+                      <NavLink
+                        to={item.to}
+                        className={({ isActive }) =>
+                          `flex items-center justify-center p-3 rounded-lg transition-all duration-200 border mb-2 ${
+                            isActive
+                              ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white border-indigo-700 shadow-md"
+                              : "hover:bg-indigo-50 text-gray-700 border-transparent hover:border-indigo-200"
+                          }`
+                        }
+                      >
+                        <div className="flex-shrink-0">{item.icon}</div>
+                      </NavLink>
+                    </Tooltip>
+                  ))}
 
-            {/* Communication */}
-            <div className="mt-4 mb-2">
-              <h6 className="md:min-w-full text-xs uppercase font-bold block pt-1 pb-2 no-underline text-blueGray-500">
-                Communication
-              </h6>
-            </div>
+              {/* Section: Account */}
+              <div className="mt-4 mb-2">
+                {!collapsed && (
+                  <Text
+                    size="1"
+                    weight="bold"
+                    color="gray"
+                    className="px-4 uppercase"
+                  >
+                    Account
+                  </Text>
+                )}
+                <Separator my="2" size="4" />
+              </div>
 
-            <SidebarLink
-              to="/student/calendar"
-              icon="fas fa-calendar-alt"
-              text="Calendar"
-            />
+              {/* Account Links */}
+              {!collapsed
+                ? accountLinks.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 border mb-2 ${
+                          isActive
+                            ? "bg-gradient-to-r from-gray-600 to-gray-500 text-white border-gray-700 shadow-md"
+                            : "hover:bg-gray-50 text-gray-700 border-transparent hover:border-gray-200"
+                        }`
+                      }
+                    >
+                      <div className="flex-shrink-0">{item.icon}</div>
+                      <span className="whitespace-nowrap font-medium">
+                        {item.label}
+                      </span>
+                    </NavLink>
+                  ))
+                : accountLinks.map((item) => (
+                    <Tooltip key={item.to} content={item.label} side="right">
+                      <NavLink
+                        to={item.to}
+                        className={({ isActive }) =>
+                          `flex items-center justify-center p-3 rounded-lg transition-all duration-200 border mb-2 ${
+                            isActive
+                              ? "bg-gradient-to-r from-gray-600 to-gray-500 text-white border-gray-700 shadow-md"
+                              : "hover:bg-gray-50 text-gray-700 border-transparent hover:border-gray-200"
+                          }`
+                        }
+                      >
+                        <div className="flex-shrink-0">{item.icon}</div>
+                      </NavLink>
+                    </Tooltip>
+                  ))}
+            </Box>
+          </ScrollArea>
 
-            <SidebarLink
-              to="/student/messages"
-              icon="fas fa-envelope"
-              text="Messages"
-            />
-
-            <SidebarLink
-              to="/student/announcements"
-              icon="fas fa-bullhorn"
-              text="Announcements"
-            />
-          </ul>
-        </div>
-      </div>
-    </nav>
+          {/* Footer */}
+          <Box p="3" className="border-t border-gray-200">
+            <Flex
+              align="center"
+              justify={collapsed ? "center" : "between"}
+              gap="3"
+            >
+              {!collapsed && <Text size="1">© 2023 Learning Platform</Text>}
+              <Button
+                variant="soft"
+                color="gray"
+                size="1"
+                onClick={() => {
+                  // Handle logout
+                }}
+              >
+                {collapsed ? "Exit" : "Logout"}
+              </Button>
+            </Flex>
+          </Box>
+        </Flex>
+      </aside>
+    </>
   );
 };
 

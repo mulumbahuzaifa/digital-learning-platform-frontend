@@ -94,22 +94,27 @@ const StudentClasses = () => {
           <Flex direction="column" gap="4">
             <Flex justify="between" align="center">
               <Box>
-                <Heading size="5">{studentClass.name}</Heading>
+                <Heading size="5">
+                  {studentClass.name || "Unnamed Class"}
+                </Heading>
                 <Text color="gray" size="2">
-                  {studentClass.code} • {studentClass.level} •{" "}
-                  {studentClass.stream}
+                  {studentClass.code || "No Code"} •{" "}
+                  {studentClass.level || "No Level"} • Stream:{" "}
+                  {studentClass.stream || "No Stream"} •{" "}
                 </Text>
-                <Text size="1" color="gray" mt="1">
-                  Academic Year: {studentClass.academicYear} • Term:{" "}
-                  {studentClass.term}
-                </Text>
+                {studentClass.enrollmentInfo && (
+                  <Text size="1" color="gray" mt="1">
+                    Academic Year:{" "}
+                    {studentClass.enrollmentInfo.academicYear || "N/A"} • Term:{" "}
+                    {studentClass.enrollmentInfo.term || "N/A"}
+                  </Text>
+                )}
               </Box>
               <Button variant="soft" color="blue" asChild>
                 <Link to="/student/calendar">View Schedule</Link>
               </Button>
             </Flex>
             <Separator size="4" />
-            <Text>{studentClass.description}</Text>
           </Flex>
         </Card>
 
@@ -124,105 +129,154 @@ const StudentClasses = () => {
           <Box pt="4">
             <Tabs.Content value="subjects">
               <Grid columns={{ initial: "1", sm: "2", md: "3" }} gap="4">
-                {studentClass.subjects.map(
-                  (subject: {
-                    _id: string;
-                    name: string;
-                    code: string;
-                    status: "active" | "inactive";
-                  }) => (
+                {studentClass.subjects &&
+                  studentClass.subjects.map((subject) => (
                     <Card key={subject._id} size="2">
                       <Flex direction="column" gap="3">
                         <Box>
-                          <Text weight="bold">{subject.name}</Text>
+                          <Text weight="bold">
+                            {subject.name || "Unnamed Subject"}
+                          </Text>
                           <Text size="1" color="gray">
-                            {subject.code}
+                            {subject.code || "No Code"}
                           </Text>
                           <Badge
-                            color={
-                              subject.status === "active" ? "green" : "red"
-                            }
+                            color={subject.isActive ? "green" : "red"}
                             variant="soft"
                             mt="1"
                           >
-                            {subject.status}
+                            {subject.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </Box>
                         <Separator size="2" />
-                        <Text size="1" color="gray">
-                          Enrolled on: {formatDate(studentClass.enrollmentDate)}
-                        </Text>
+                        {subject.teachers && subject.teachers.length > 0 && (
+                          <Box>
+                            <Text size="1" color="gray">
+                              Teachers:
+                            </Text>
+                            {subject.teachers.map((teacher, idx) => (
+                              <Text size="1" key={teacher.teacher._id || idx}>
+                                {teacher.teacher.firstName}{" "}
+                                {teacher.teacher.lastName}
+                                {teacher.isLeadTeacher ? " (Lead)" : ""}
+                              </Text>
+                            ))}
+                          </Box>
+                        )}
+                        {studentClass.enrollmentInfo && (
+                          <Text size="1" color="gray">
+                            Enrolled on:{" "}
+                            {formatDate(
+                              studentClass.enrollmentInfo.enrollmentDate || ""
+                            )}
+                          </Text>
+                        )}
                       </Flex>
                     </Card>
-                  )
-                )}
+                  ))}
               </Grid>
             </Tabs.Content>
 
             <Tabs.Content value="content">
               <Grid columns={{ initial: "1", sm: "2", md: "3" }} gap="4">
-                {content?.map((item: Content) => (
-                  <Card key={item._id} size="2">
-                    <Flex direction="column" gap="3">
-                      <Box>
-                        <Text weight="bold">{item.title}</Text>
-                        <Flex gap="2" align="center" mt="1">
-                          <Badge color="blue" variant="soft">
-                            {item.type}
-                          </Badge>
-                          <Text size="1" color="gray">
-                            {formatDate(item.createdAt.toString())}
+                {content?.length ? (
+                  content.map((item: Content) => (
+                    <Card key={item._id} size="2">
+                      <Flex direction="column" gap="3">
+                        <Box>
+                          <Text weight="bold">
+                            {item.title || "Untitled Content"}
                           </Text>
-                        </Flex>
-                      </Box>
-                      <Text size="1" color="gray" truncate>
-                        {item.description}
+                          <Flex gap="2" align="center" mt="1">
+                            <Badge color="blue" variant="soft">
+                              {item.type || "Unknown"}
+                            </Badge>
+                            <Text size="1" color="gray">
+                              {formatDate(item.createdAt?.toString() || "")}
+                            </Text>
+                          </Flex>
+                        </Box>
+                        <Text size="1" color="gray" truncate>
+                          {item.description || "No description"}
+                        </Text>
+                        <Button asChild size="2">
+                          <Link to={`/student/content/${item._id}`}>
+                            View Content
+                          </Link>
+                        </Button>
+                      </Flex>
+                    </Card>
+                  ))
+                ) : (
+                  <Card size="2" style={{ gridColumn: "1 / -1" }}>
+                    <Flex
+                      direction="column"
+                      align="center"
+                      justify="center"
+                      gap="2"
+                      p="4"
+                    >
+                      <Text color="gray">
+                        No content available for this class yet
                       </Text>
-                      <Button asChild size="2">
-                        <Link to={`/student/content/${item._id}`}>
-                          View Content
-                        </Link>
-                      </Button>
                     </Flex>
                   </Card>
-                ))}
+                )}
               </Grid>
             </Tabs.Content>
 
             <Tabs.Content value="assignments">
               <Grid columns={{ initial: "1", sm: "2", md: "3" }} gap="4">
-                {assignments?.map((assignment: Assignment) => (
-                  <Card key={assignment._id} size="2">
-                    <Flex direction="column" gap="3">
-                      <Box>
-                        <Text weight="bold">{assignment.title}</Text>
-                        <Flex gap="2" align="center" mt="1">
-                          <CalendarIcon width={16} height={16} />
-                          <Text size="1" color="gray">
-                            Due: {formatDate(assignment.dueDate)}
+                {assignments?.length ? (
+                  assignments.map((assignment: Assignment) => (
+                    <Card key={assignment._id} size="2">
+                      <Flex direction="column" gap="3">
+                        <Box>
+                          <Text weight="bold">
+                            {assignment.title || "Untitled Assignment"}
                           </Text>
+                          <Flex gap="2" align="center" mt="1">
+                            <CalendarIcon width={16} height={16} />
+                            <Text size="1" color="gray">
+                              Due: {formatDate(assignment.dueDate || "")}
+                            </Text>
+                          </Flex>
+                        </Box>
+                        <Text size="1" color="gray" truncate>
+                          {assignment.description || "No description"}
+                        </Text>
+                        <Flex gap="2">
+                          <Button asChild size="2" variant="soft">
+                            <Link to={`/student/assignments/${assignment._id}`}>
+                              View Details
+                            </Link>
+                          </Button>
+                          <Button asChild size="2">
+                            <Link
+                              to={`/student/assignments/${assignment._id}/submit`}
+                            >
+                              Submit
+                            </Link>
+                          </Button>
                         </Flex>
-                      </Box>
-                      <Text size="1" color="gray" truncate>
-                        {assignment.description}
-                      </Text>
-                      <Flex gap="2">
-                        <Button asChild size="2" variant="soft">
-                          <Link to={`/student/assignments/${assignment._id}`}>
-                            View Details
-                          </Link>
-                        </Button>
-                        <Button asChild size="2">
-                          <Link
-                            to={`/student/assignments/${assignment._id}/submit`}
-                          >
-                            Submit
-                          </Link>
-                        </Button>
                       </Flex>
+                    </Card>
+                  ))
+                ) : (
+                  <Card size="2" style={{ gridColumn: "1 / -1" }}>
+                    <Flex
+                      direction="column"
+                      align="center"
+                      justify="center"
+                      gap="2"
+                      p="4"
+                    >
+                      <Text color="gray">
+                        No assignments available for this class yet
+                      </Text>
                     </Flex>
                   </Card>
-                ))}
+                )}
               </Grid>
             </Tabs.Content>
           </Box>

@@ -157,7 +157,7 @@ export const useAuthActions = () => {
     onSuccess: (success) => {
       if (success) {
         toast.success(
-          "Registration successful! Please check your email for verification link.",
+          "Registration successful! Wait for admin to verify your account.",
           { duration: 5000 }
         );
         navigate("/login");

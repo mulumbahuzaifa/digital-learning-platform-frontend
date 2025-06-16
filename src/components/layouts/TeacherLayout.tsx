@@ -10,20 +10,21 @@ interface TeacherLayoutProps {
 
 const TeacherLayout: React.FC<TeacherLayoutProps> = () => {
   return (
-    <>
+    <div className="flex h-screen bg-gray-50">
       <TeacherSidebar />
-      <div className="relative md:ml-64 bg-blueGray-100 min-h-screen">
+
+      <div className="flex flex-col flex-1 w-full md:ml-64">
         <TeacherNavbar />
 
         {/* Main Content */}
-        <div className="px-4 md:px-6 py-4 w-full mx-auto min-h-[calc(100vh-64px)]">
-          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4">
             <Outlet />
           </div>
           <FooterAdmin />
-        </div>
+        </main>
       </div>
-    </>
+    </div>
   );
 };
 

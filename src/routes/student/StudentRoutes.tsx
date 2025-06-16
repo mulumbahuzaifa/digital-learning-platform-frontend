@@ -36,6 +36,10 @@ import ComposeMessage from "../../pages/student/messages/ComposeMessage";
 import MessageDetail from "../../pages/student/messages/MessageDetail";
 import StudentMessages from "../../pages/student/messages/StudentMessages";
 
+// Live Session pages
+import StudentLiveSessions from "../../pages/student/live-sessions/StudentLiveSessions";
+import StudentLiveSessionDetail from "../../pages/student/live-sessions/StudentLiveSessionDetail";
+
 // Import other student pages
 // These are placeholders, you'll need to create these components
 // or replace with actual imports when components are ready
@@ -131,11 +135,27 @@ const studentRoutes: (RouteObject & { roles?: string[] })[] = [
         element: <StudentResources />,
       },
 
-      // Communication
+      // Live Sessions
+      {
+        path: "/student/live-sessions",
+        element: <StudentLiveSessions />,
+      },
+      {
+        path: "/student/live-sessions/:id",
+        element: <StudentLiveSessionDetail />,
+      },
+      {
+        path: "/student/live-sessions/:id/join",
+        element: <StudentLiveSessionDetail />,
+      },
+
+      // Calendar
       {
         path: "/student/calendar",
         element: <StudentCalendar />,
       },
+
+      // Messages
       {
         path: "/student/messages",
         element: <StudentMessages />,

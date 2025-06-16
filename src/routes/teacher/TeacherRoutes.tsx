@@ -17,7 +17,6 @@ import ClassStudents from "../../pages/teacher/classes/students/ClassStudents";
 import ClassSubjects from "../../pages/teacher/classes/subjects/ClassSubjects";
 
 // Student Management
-import TeacherStudents from "../../pages/teacher/students/TeacherStudents";
 import StudentEnrollment from "../../pages/teacher/students/enrollment/StudentEnrollment";
 import StudentDetail from "../../pages/teacher/students/detail/StudentDetail";
 
@@ -46,6 +45,12 @@ import TeacherCalendar from "../../pages/teacher/calendar/TeacherCalendar";
 import CalendarEventCreate from "../../pages/teacher/calendar/CalendarEventCreate";
 import CalendarEventEdit from "../../pages/teacher/calendar/CalendarEventEdit";
 import TeacherMessages from "../../pages/teacher/messages/TeacherMessages";
+
+// Live Session pages
+import LiveSessionManagement from "../../pages/teacher/live-sessions/LiveSessionManagement";
+import CreateLiveSession from "../../pages/teacher/live-sessions/CreateLiveSession";
+import EditLiveSession from "../../pages/teacher/live-sessions/EditLiveSession";
+import LiveSessionDetail from "../../pages/teacher/live-sessions/LiveSessionDetail";
 
 // Placeholder components for features to be implemented
 const TeacherAnnouncements = () => <div>Announcements Page</div>;
@@ -77,18 +82,13 @@ const teacherRoutes: (RouteObject & { roles?: string[] })[] = [
         element: <ClassDetail />,
       },
       {
-        path: "/teacher/classes/:id/students",
-        element: <ClassStudents />,
-      },
-      {
         path: "/teacher/classes/:id/subjects",
         element: <ClassSubjects />,
       },
-
       // Students
       {
         path: "/teacher/students",
-        element: <TeacherStudents />,
+        element: <ClassStudents />,
       },
       {
         path: "/teacher/students/enroll",
@@ -165,6 +165,28 @@ const teacherRoutes: (RouteObject & { roles?: string[] })[] = [
       {
         path: "/teacher/content/:id",
         element: <ViewTeacherContent />,
+      },
+
+      // Live Sessions
+      {
+        path: "/teacher/live-sessions",
+        element: <LiveSessionManagement />,
+      },
+      {
+        path: "/teacher/live-sessions/create",
+        element: <CreateLiveSession />,
+      },
+      {
+        path: "/teacher/live-sessions/:id",
+        element: <LiveSessionDetail />,
+      },
+      {
+        path: "/teacher/live-sessions/:id/edit",
+        element: <EditLiveSession />,
+      },
+      {
+        path: "/teacher/live-sessions/:id/join",
+        element: <LiveSessionDetail />,
       },
 
       // Calendar

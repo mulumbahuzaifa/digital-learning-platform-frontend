@@ -162,6 +162,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.log("Login result:", result);
       
       if (result.success) {
+        // Check if user is verified
+        if (result.user && !result.user.isVerified) {
+          toast.error("Your account has not been verified yet. Please wait for admin approval or contact support.", {
+            duration: 6000,
+            icon: '⚠️',
+          });
+          return false;
+        }
+
         // Update token state after login first thing
         console.log("Login successful, updating token in storage");
         
@@ -196,6 +205,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const { data: userData } = await currentUser.refetch();
             
             if (userData) {
+              // Check if user is verified
+              if (!userData.isVerified) {
+                toast.error("Your account has not been verified yet. Please wait for admin approval or contact support.", {
+                  duration: 6000,
+                  icon: '⚠️',
+                });
+                // Clear tokens since user shouldn't be logged in
+                localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
+                setToken('');
+                setUser(null);
+                return false;
+              }
+
               console.log("Successfully fetched user data:", userData);
               setUser(userData);
               
