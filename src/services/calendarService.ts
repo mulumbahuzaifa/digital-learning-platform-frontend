@@ -4,7 +4,7 @@ import {
   CreateCalendarEventData,
   UpdateCalendarEventData,
   CalendarEventFilterParams,
-  UpdateAttendanceData,
+  UpdateAttendanceStatusData,
 } from "../types";
 
 export const calendarService = {
@@ -39,9 +39,9 @@ export const calendarService = {
 
   async updateAttendanceStatus(
     id: string,
-    status: string
+    data: UpdateAttendanceStatusData
   ): Promise<CalendarEvent> {
-    const response = await api.put(`/calendar/${id}/attendance`, { status });
+    const response = await api.put(`/calendar/${id}/attendance`, data);
     return response.data.data;
   },
 };

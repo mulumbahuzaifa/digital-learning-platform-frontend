@@ -8,6 +8,8 @@ import { subjectService } from "../../services/subjectService";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 import { Box, Text } from "@radix-ui/themes";
 import { useAuth } from "../../context/AuthProvider";
+import { Subject } from "../../types/class";
+import { TeacherClass } from "../../types/class";
 
 const CreateContent = () => {
   const navigate = useNavigate();
@@ -53,8 +55,8 @@ const CreateContent = () => {
         mode="create"
         onSubmit={handleSubmit}
         isSubmitting={createContent.isPending}
-        classes={classes || []}
-        subjects={subjects}
+        classes={classes as unknown as TeacherClass[] || []}
+        subjects={subjects as unknown as Subject[] || []}
       />
     </Card>
   );

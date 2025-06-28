@@ -147,12 +147,10 @@ export const ContentForm = ({
   useEffect(() => {
     if (watchClass && classes.length > 0) {
       const selectedClassObj = classes.find((c) => c._id === watchClass);
-
+      console.log(selectedClassObj)
       if (
         selectedClassObj &&
-        selectedClassObj.subjects &&
-        subjects &&
-        subjects.length > 0
+        selectedClassObj.subjects
       ) {
         // Filter subjects based on the selected class and the teacher's authorized subjects
         const authorizedSubjects = [];
@@ -161,16 +159,19 @@ export const ContentForm = ({
 
         // Loop through each subject in the selected class
         for (const classSubject of selectedClassObj.subjects) {
+          const subjects = selectedClassObj.subjects.map(subject => ({
+            _id: typeof subject.subject === 'string' ? subject.subject : subject.subject._id,
+            name: typeof subject.subject === 'string' ? '' : subject.subject.name,
+            code: typeof subject.subject === 'string' ? '' : subject.subject.code
+          })).filter(subject => subject.name);
           // Get the subject ID
-          const subjectId =
-            typeof classSubject.subject === "string"
-              ? classSubject.subject
-              : classSubject.subject._id;
+          const subjectId = subjects._id;
 
           // Check if this is the currently assigned subject
           if (currentSubject && currentSubject === subjectId) {
             includesCurrentSubject = true;
           }
+          console.log(currentSubject)
 
           // Check if this teacher is assigned to teach this subject
           const isAssignedTeacher =
@@ -293,9 +294,6 @@ export const ContentForm = ({
                 {...register("title")}
                 className="w-full bg-transparent border-none outline-none"
               >
-                <TextField.Slot>
-                  <Text size="2">{watch("title")}</Text>
-                </TextField.Slot>
               </TextField.Root>
               {errors.title && (
                 <Text size="1" color="red" mt="1">

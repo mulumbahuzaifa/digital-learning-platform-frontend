@@ -39,12 +39,24 @@ export interface UserProfile {
   department?: string;
 }
 
+export interface Document {
+  name: string;
+  url: string;
+  fileType?: string;
+  uploadedAt?: Date;
+  description?: string;
+}
+
 export interface Qualification {
   subject?: string;
   qualificationLevel?: string;
   yearsOfExperience?: number;
   institution?: string;
   yearObtained?: number;
+  documents?: Document[];
+  isVerified?: boolean;
+  verifiedBy?: string;
+  verifiedAt?: Date;
 }
 
 export interface ClassRequest {
@@ -95,6 +107,7 @@ export interface AuthContextType {
   redirectPath: string;
   setRedirectPath: (path: string) => void;
   setUser: (user: User | null) => void;
+  updateUser: (updatedUser: User) => void;
 }
 
 // Form schema types
@@ -381,12 +394,6 @@ export interface AssignmentAttachment {
   urlType?: "document" | "video" | "website" | "other";
 }
 
-export interface AssignmentRubric {
-  criteria: string;
-  marks: number;
-  description?: string;
-}
-
 export interface Assignment {
   _id: string;
   title: string;
@@ -409,7 +416,6 @@ export interface Assignment {
   difficultyLevel: DifficultyLevel;
   estimatedTime?: number;
   learningObjectives?: string[];
-  rubrics?: AssignmentRubric[];
   status: AssignmentStatus;
   createdAt: string;
   updatedAt: string;
@@ -436,7 +442,6 @@ export interface CreateAssignmentData {
   difficultyLevel?: DifficultyLevel;
   estimatedTime?: number;
   learningObjectives?: string[];
-  rubrics?: AssignmentRubric[];
 }
 
 export interface UpdateAssignmentData {
@@ -457,7 +462,6 @@ export interface UpdateAssignmentData {
   difficultyLevel?: DifficultyLevel;
   estimatedTime?: number;
   learningObjectives?: string[];
-  rubrics?: AssignmentRubric[];
   status?: AssignmentStatus;
 }
 
@@ -514,11 +518,6 @@ export interface Submission {
     lastName: string;
   };
   gradedAt?: string;
-  rubrics?: Array<{
-    criteria: string;
-    marks: number;
-    comment?: string;
-  }>;
   submissionMethod: "online" | "offline";
   submissionNotes?: string;
   resubmissionCount: number;
@@ -659,12 +658,6 @@ export interface GradebookExam {
   weight?: number;
 }
 
-export interface GradebookRubric {
-  criteria: string;
-  marks: number;
-  comment?: string;
-}
-
 export interface Gradebook {
   _id: string;
   student: string | User;
@@ -674,7 +667,6 @@ export interface Gradebook {
   assignments?: GradebookAssignment[];
   tests?: GradebookTest[];
   exams?: GradebookExam[];
-  rubrics?: GradebookRubric[];
   totalMarks?: number;
   finalGrade?: "A" | "B" | "C" | "D" | "F";
   positionInClass?: number;
@@ -695,10 +687,28 @@ export interface CreateGradebookData {
     { assignment: string }[];
   tests?: Omit<GradebookTest, "date">[] & { date: string }[];
   exams?: Omit<GradebookExam, "date">[] & { date: string }[];
-  rubrics?: GradebookRubric[];
   remarks?: string;
   academicYear: string;
+  totalMarks?: number;
+  finalGrade?: "A" | "B" | "C" | "D" | "F";
   term: "Term 1" | "Term 2" | "Term 3";
+}
+
+export interface UpdateGradebookData {
+  student?: string;
+  class?: string;
+  subject?: string;
+  teacher?: string;
+  assignments?: Omit<GradebookAssignment, "assignment">[] &
+    { assignment: string }[];
+  tests?: Omit<GradebookTest, "date">[] & { date: string }[];
+  exams?: Omit<GradebookExam, "date">[] & { date: string }[];
+  totalMarks?: number;
+  finalGrade?: "A" | "B" | "C" | "D" | "F";
+  positionInClass?: number;
+  remarks?: string;
+  academicYear?: string;
+  term?: "Term 1" | "Term 2" | "Term 3";
 }
 
 export interface GradebookFilterParams {
@@ -785,33 +795,64 @@ export interface RecurringEventSettings {
 export interface CalendarEvent {
   _id: string;
   title: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  location: string;
-  attendanceStatus?: "present" | "absent";
+  description?: string;
+  start: string | Date;
+  end: string | Date;
+  allDay: boolean;
+  location?: string;
+  eventType: EventType;
+  class?: string | Class;
+  subject?: string | Subject;
+  attendees?: EventAttendee[];
+  recurring?: RecurringEventSettings;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateCalendarEventData {
   title: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  location: string;
+  description?: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  location?: string;
+  eventType: EventType;
+  class?: string;
+  subject?: string;
+  recurring?: {
+    isRecurring: boolean;
+    frequency?: RecurringFrequency;
+    endRecurring?: string;
+  };
+  attendees?: Array<{
+    user: string;
+    status: EventAttendanceStatus;
+  }>;
 }
 
 export interface UpdateCalendarEventData {
   title?: string;
   description?: string;
-  startDate?: string;
-  endDate?: string;
+  start?: string;
+  end?: string;
+  allDay?: boolean;
   location?: string;
+  eventType?: EventType;
+  class?: string;
+  subject?: string;
+  recurring?: {
+    isRecurring: boolean;
+    frequency?: RecurringFrequency;
+    endRecurring?: string;
+  };
+  attendees?: Array<{
+    user: string;
+    status: EventAttendanceStatus;
+  }>;
 }
 
 export interface UpdateAttendanceStatusData {
-  status: "present" | "absent";
+  status: "present" | "absent" | "late" | "excused";
 }
 
 export interface CalendarEventFilterParams {
@@ -1053,4 +1094,10 @@ export interface LoginResult {
 export interface UpdateAttendanceData {
   status?: AttendanceStatus;
   remarks?: string;
+  records?: Array<{
+    student: string;
+    status: AttendanceStatus;
+    remark?: string;
+  }>;
+  notes?: string;
 }

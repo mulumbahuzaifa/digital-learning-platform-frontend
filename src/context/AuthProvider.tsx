@@ -53,6 +53,26 @@ const isTokenValid = (token: string): boolean => {
   }
 };
 
+// Auth context types
+export interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  login: (credentials: LoginFormData) => Promise<boolean>;
+  register: (userData: RegisterFormData) => Promise<boolean>;
+  logout: () => void;
+  verifyEmail: (token: string) => Promise<boolean>;
+  forgotPassword: (email: string) => Promise<boolean>;
+  resetPassword: (token: string, newPassword: string) => Promise<boolean>;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  isTeacher: boolean;
+  isStudent: boolean;
+  redirectPath: string;
+  setRedirectPath: (path: string) => void;
+  setUser: (user: User | null) => void;
+  updateUser: (updatedUser: User) => void;
+}
+
 // The AuthProvider component 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -297,26 +317,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     navigate("/login");
   };
 
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+  };
+
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo<AuthContextType>(() => ({
     user,
-    isLoading: currentUser.isLoading || authLoading,
+    token,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === "admin",
+    isTeacher: user?.role === "teacher",
+    isStudent: user?.role === "student",
     login,
     register,
     logout,
     verifyEmail,
     forgotPassword,
     resetPassword,
-    isAuthenticated: !!user,
-    isAdmin: !!user && user.role === 'admin',
-    isTeacher: !!user && user.role === 'teacher',
-    isStudent: !!user && user.role === 'student',
+    updateUser,
     setUser,
+    isLoading: authLoading,
     redirectPath,
     setRedirectPath,
   }), [
     user,
-    currentUser.isLoading,
+    token,
     authLoading,
     redirectPath,
     login,
@@ -325,6 +351,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     verifyEmail,
     forgotPassword,
     resetPassword,
+    updateUser,
     setUser,
     setRedirectPath
   ]);

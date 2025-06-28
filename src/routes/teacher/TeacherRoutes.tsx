@@ -15,6 +15,8 @@ import ClassDetail from "../../pages/teacher/classes/detail/ClassDetail";
 import ClassCreate from "../../pages/teacher/classes/create/ClassCreate";
 import ClassStudents from "../../pages/teacher/classes/students/ClassStudents";
 import ClassSubjects from "../../pages/teacher/classes/subjects/ClassSubjects";
+import ClassAssignments from "../../pages/teacher/classes/assignments/ClassAssignments";
+import ClassAttendance from "../../pages/teacher/classes/attendance/ClassAttendance";
 
 // Student Management
 import StudentEnrollment from "../../pages/teacher/students/enrollment/StudentEnrollment";
@@ -85,6 +87,15 @@ const teacherRoutes: (RouteObject & { roles?: string[] })[] = [
         path: "/teacher/classes/:id/subjects",
         element: <ClassSubjects />,
       },
+      {
+        path: "/teacher/classes/:id/attendance",
+        element: <ClassAttendance />,
+      },
+      {
+        path: "/teacher/classes/:id/assignments",
+        element: <ClassAssignments />,
+      },
+      
       // Students
       {
         path: "/teacher/students",

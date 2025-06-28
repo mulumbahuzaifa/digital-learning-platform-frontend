@@ -1,5 +1,7 @@
 import { Card } from '@radix-ui/themes';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 import GradebookForm from '../../../components/admin/GradebookForm';
 import { useGradebookMutation } from '../../../hooks/useGradebookMutation';
 import { CreateGradebookData } from '../../../types';
@@ -7,10 +9,20 @@ import { CreateGradebookData } from '../../../types';
 const GradebookCreate = () => {
   const navigate = useNavigate();
   const { createGradebook } = useGradebookMutation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleCreateGradebook = async (data: CreateGradebookData | any) => {
-    await createGradebook.mutateAsync(data as CreateGradebookData);
-    navigate('/admin/gradebook');
+    try {
+      setIsSubmitting(true);
+      await createGradebook.mutateAsync(data as CreateGradebookData);
+      toast.success('Gradebook entry created successfully');
+      navigate('/admin/gradebook');
+    } catch (error) {
+      toast.error('Failed to create gradebook entry');
+      console.error('Error creating gradebook:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -18,7 +30,7 @@ const GradebookCreate = () => {
       <GradebookForm
         mode="create"
         onSubmit={handleCreateGradebook}
-        isSubmitting={createGradebook.isPending}
+        isSubmitting={isSubmitting || createGradebook.isPending}
       />
     </Card>
   );

@@ -56,6 +56,8 @@ const TeacherCalendar: React.FC = () => {
     queryFn: () => calendarService.getEvents(),
   });
 
+  console.log(events);
+
   // Delete event mutation
   const deleteEventMutation = useMutation({
     mutationFn: (id: string) => calendarService.deleteEvent(id),
@@ -136,7 +138,7 @@ const TeacherCalendar: React.FC = () => {
       {/* Create Event Dialog */}
       <Dialog.Root open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <Dialog.Content style={{ maxWidth: 600 }}>
-          <Dialog.Title>Create New Event</Dialog.Title>
+          {/* <Dialog.Title>Create New Event</Dialog.Title> */}
           <CalendarEventForm
             mode="create"
             initialStartDate={
@@ -204,7 +206,7 @@ const TeacherCalendar: React.FC = () => {
               variant="soft"
               onClick={() => {
                 setShowEventDialog(false);
-                navigate(`/teacher/calendar/events/${selectedEvent?._id}/edit`);
+                navigate(`/teacher/calendar/${selectedEvent?._id}/edit`);
               }}
             >
               <Pencil1Icon /> Edit

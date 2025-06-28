@@ -277,7 +277,7 @@ const CalendarManagement = () => {
             </Box>
 
             {/* Event Details Dialog */}
-            {showEventDetails && (
+            {/* {showEventDetails && (
               <AlertDialog.Root 
                 open={showEventDetails}
                 onOpenChange={(open) => {
@@ -405,9 +405,10 @@ const CalendarManagement = () => {
                       </Button>
                     </AlertDialog.Cancel>
                   </Flex>
+                </Flex>
                 </AlertDialog.Content>
               </AlertDialog.Root>
-            )}
+            )} */}
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog.Root

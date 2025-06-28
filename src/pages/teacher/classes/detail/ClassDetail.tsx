@@ -24,13 +24,14 @@ import {
 import { classService } from "../../../../services/classService";
 import LoadingSpinner from "../../../../components/ui/LoadingSpinner";
 import { formatDate } from "../../../../utils/formatters";
+import { StudentClass } from "../../../../types/class";
 
 const ClassDetail = () => {
   const { id } = useParams();
 
-  const { data: classData, isLoading, error } = useQuery({
+  const { data: classData, isLoading, error } = useQuery<StudentClass>({
     queryKey: ["class", id],
-    queryFn: () => classService.getClass(id!),
+    queryFn: () => classService.getClassById(id!),
   });
 
   if (isLoading) return <LoadingSpinner />;
@@ -44,8 +45,13 @@ const ClassDetail = () => {
         
         <Flex gap="3">
           <Button variant="soft" asChild>
-            <Link to={`/teacher/classes/${id}/edit`}>
-              Edit Class
+            <Link to={`/teacher/classes/${id}/assignments`}>
+              View Assignments
+            </Link>
+          </Button>
+          <Button variant="soft" asChild>
+            <Link to={`/teacher/classes/${id}/attendance`}>
+              View Attendance
             </Link>
           </Button>
         </Flex>
@@ -63,11 +69,11 @@ const ClassDetail = () => {
               </Flex>
               <Flex align="center" gap="2">
                 <CalendarIcon />
-                <Text>Year: {classData?.year}</Text>
+                <Text>Year: {classData?.enrollmentInfo?.academicYear}</Text>
               </Flex>
               <Flex align="center" gap="2">
                 <ClockIcon />
-                <Text>Term: {classData?.academicTerm}</Text>
+                <Text>Term: {classData?.enrollmentInfo?.term}</Text>
               </Flex>
               <Flex align="center" gap="2">
                 <CheckIcon />
@@ -81,8 +87,9 @@ const ClassDetail = () => {
 
           <Box>
             <Flex direction="column" gap="3">
-              <Text weight="bold" size="3">Description</Text>
-              <Text>{classData?.description}</Text>
+              <Text weight="bold" size="3">Enrollment Details</Text>
+              <Text>Status: {classData?.enrollmentInfo?.status}</Text>
+              <Text>Enrolled On: {formatDate(classData?.enrollmentInfo?.enrollmentDate || '')}</Text>
             </Flex>
           </Box>
 
@@ -91,7 +98,7 @@ const ClassDetail = () => {
               <Text weight="bold" size="3">Summary</Text>
               <Flex align="center" gap="2">
                 <PersonIcon />
-                <Text>Students: {classData?.students?.length || 0}</Text>
+                <Text>Level: {classData?.level}</Text>
               </Flex>
               <Flex align="center" gap="2">
                 <BookmarkIcon />
@@ -99,7 +106,7 @@ const ClassDetail = () => {
               </Flex>
               <Flex align="center" gap="2">
                 <FileIcon />
-                <Text>Created: {formatDate(classData?.createdAt || '')}</Text>
+                <Text>Stream: {classData?.stream || 'N/A'}</Text>
               </Flex>
             </Flex>
           </Box>
@@ -107,56 +114,13 @@ const ClassDetail = () => {
       </Card>
 
       {/* Tabs for Different Sections */}
-      <Tabs.Root defaultValue="students">
+      <Tabs.Root defaultValue="subjects">
         <Tabs.List>
-          <Tabs.Trigger value="students">Students</Tabs.Trigger>
           <Tabs.Trigger value="subjects">Subjects</Tabs.Trigger>
-          <Tabs.Trigger value="prefects">Prefects</Tabs.Trigger>
+          <Tabs.Trigger value="teachers">Teachers</Tabs.Trigger>
         </Tabs.List>
 
         <Box pt="4">
-          <Tabs.Content value="students">
-            <Card>
-              <Flex justify="between" mb="4">
-                <Text size="3" weight="bold">Students</Text>
-                <Button asChild>
-                  <Link to={`/teacher/classes/${id}/students`}>
-                    View All Students
-                  </Link>
-                </Button>
-              </Flex>
-              
-              {!classData?.students?.length ? (
-                <Text color="gray">No students in this class yet.</Text>
-              ) : (
-                <Flex direction="column" gap="2">
-                  {classData.students.slice(0, 5).map(student => (
-                    <Card key={student._id} variant="surface">
-                      <Flex justify="between" align="center">
-                        <Flex align="center" gap="2">
-                          <PersonIcon />
-                          <Text>{student.student.firstName} {student.student.lastName}</Text>
-                        </Flex>
-                        <Badge color={
-                          student.status === 'approved' ? 'green' : 
-                          student.status === 'rejected' ? 'red' : 
-                          'orange'
-                        }>
-                          {student.status}
-                        </Badge>
-                      </Flex>
-                    </Card>
-                  ))}
-                  {classData.students.length > 5 && (
-                    <Text size="2" color="gray" align="center">
-                      +{classData.students.length - 5} more students
-                    </Text>
-                  )}
-                </Flex>
-              )}
-            </Card>
-          </Tabs.Content>
-
           <Tabs.Content value="subjects">
             <Card>
               <Flex justify="between" mb="4">
@@ -177,9 +141,9 @@ const ClassDetail = () => {
                       <Flex justify="between" align="center">
                         <Flex align="center" gap="2">
                           <BookmarkIcon />
-                          <Text>{subject.subject.name}</Text>
+                          <Text>{subject.name}</Text>
                         </Flex>
-                        <Text size="2" color="gray">{subject.subject.code}</Text>
+                        <Text size="2" color="gray">{subject.code}</Text>
                       </Flex>
                     </Card>
                   ))}
@@ -193,30 +157,30 @@ const ClassDetail = () => {
             </Card>
           </Tabs.Content>
 
-          <Tabs.Content value="prefects">
+          <Tabs.Content value="teachers">
             <Card>
               <Flex justify="between" mb="4">
-                <Text size="3" weight="bold">Prefects</Text>
-                <Button>
-                  Assign Prefect
-                </Button>
+                <Text size="3" weight="bold">Subject Teachers</Text>
               </Flex>
               
-              {!classData?.prefects?.length ? (
-                <Text color="gray">No prefects assigned to this class yet.</Text>
+              {!classData?.subjects?.some(subj => subj.teachers?.length) ? (
+                <Text color="gray">No teachers assigned yet.</Text>
               ) : (
                 <Flex direction="column" gap="2">
-                  {classData.prefects.map(prefect => (
-                    <Card key={prefect._id} variant="surface">
-                      <Flex justify="between" align="center">
-                        <Flex align="center" gap="2">
-                          <PersonIcon />
-                          <Text>{prefect.student.firstName} {prefect.student.lastName}</Text>
+                  {classData.subjects.filter(s => s.teachers?.length).slice(0, 5).map(subject => (
+                    <Card key={subject._id} variant="surface">
+                      <Text size="3" weight="bold" mb="2">{subject.name}</Text>
+                      {subject.teachers.map(teacher => (
+                        <Flex key={teacher.teacher._id} justify="between" align="center" mt="1">
+                          <Flex align="center" gap="2">
+                            <PersonIcon />
+                            <Text>{teacher.teacher.firstName} {teacher.teacher.lastName}</Text>
+                          </Flex>
+                          {teacher.isLeadTeacher && (
+                            <Badge color="blue">Lead Teacher</Badge>
+                          )}
                         </Flex>
-                        <Badge color="blue">
-                          {prefect.position}
-                        </Badge>
-                      </Flex>
+                      ))}
                     </Card>
                   ))}
                 </Flex>

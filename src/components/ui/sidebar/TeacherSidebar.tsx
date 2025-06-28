@@ -122,16 +122,6 @@ const TeacherSidebar = () => {
         icon: <BookmarkIcon width={16} height={16} />,
         to: "/teacher/classes",
       },
-      {
-        label: "Create Class",
-        icon: <BookmarkIcon width={16} height={16} />,
-        to: "/teacher/classes/create",
-      },
-      {
-        label: "Class Details",
-        icon: <BookmarkIcon width={16} height={16} />,
-        to: "/teacher/classes/detail",
-      },
     ],
   };
 

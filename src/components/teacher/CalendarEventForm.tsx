@@ -16,7 +16,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { classService } from "../../services/classService";
-import { subjectService } from "../../services/subjectService";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import { CalendarIcon } from "@radix-ui/react-icons";
 import {
@@ -26,6 +25,17 @@ import {
   EventType,
   EventAttendanceStatus,
 } from "../../types";
+
+// Define types for teacher classes and subjects
+interface ClassInfo {
+  id: string;
+  name: string;
+}
+
+interface SubjectInfo {
+  id: string;
+  name: string;
+}
 
 // Validation schema for calendar event form
 const calendarEventSchema = z.object({
@@ -92,6 +102,9 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
       ? initialData.class
       : initialData?.class?._id || ""
   );
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [subjects, setSubjects] = useState<SubjectInfo[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<SubjectInfo[]>([]);
 
   const {
     control,
@@ -199,16 +212,82 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
   });
 
   // Fetch classes data
-  const { data: classes, isLoading: loadingClasses } = useQuery({
+  const { data: teacherClasses, isLoading: loadingClasses } = useQuery({
     queryKey: ["classes"],
     queryFn: () => classService.getMyClasses(),
   });
 
-  // Fetch subjects data
-  const { data: subjects, isLoading: loadingSubjects } = useQuery({
-    queryKey: ["subjects"],
-    queryFn: () => subjectService.getAllSubjects(),
-  });
+  // Process teacher classes when data loads
+  useEffect(() => {
+    if (teacherClasses) {
+      const processedClasses: ClassInfo[] = [];
+      const processedSubjects: SubjectInfo[] = [];
+      
+      teacherClasses.forEach((cls: any) => { // eslint-disable-line
+        // Process each class
+        if ('class' in cls) { // TeacherClass type
+          processedClasses.push({
+            id: cls.class._id,
+            name: cls.class.name
+          });
+          
+          // Process subjects from this class
+          cls.subjects.forEach(subject => {
+            if (!processedSubjects.some(s => s.id === subject._id)) {
+              processedSubjects.push({
+                id: subject._id,
+                name: subject.name
+              });
+            }
+          });
+        } else { // StudentClass type
+          processedClasses.push({
+            id: cls._id,
+            name: cls.name
+          });
+
+          // Process subjects from StudentClass
+          cls.subjects.forEach(subject => {
+            if (!processedSubjects.some(s => s.id === subject._id)) {
+              processedSubjects.push({
+                id: subject._id,
+                name: subject.name
+              });
+            }
+          });
+        }
+      });
+      
+      setClasses(processedClasses);
+      setSubjects(processedSubjects);
+      
+      // If there's a selected class, filter subjects for that class
+      if (selectedClass) {
+        filterSubjectsForClass(selectedClass, teacherClasses);
+      } else {
+        setAvailableSubjects(processedSubjects);
+      }
+    }
+  }, [teacherClasses, selectedClass]);
+
+  // Function to filter subjects for a specific class
+  const filterSubjectsForClass = (classId: string, teacherClasses: Array<any>) => {
+    const selectedClassData = teacherClasses.find(
+      cls => ('class' in cls && cls.class._id === classId) || cls._id === classId
+    );
+    
+    if (selectedClassData && 'subjects' in selectedClassData) {
+      // For TeacherClass or StudentClass
+      const classSubjects = selectedClassData.subjects.map((subject: any) => ({
+        id: subject._id,
+        name: subject.name
+      }));
+      setAvailableSubjects(classSubjects);
+    } else {
+      // If no subjects found or class structure is different, keep all subjects
+      setAvailableSubjects(subjects);
+    }
+  };
 
   // Watch class to handle dependencies
   const watchedClass = watch("class");
@@ -223,9 +302,16 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
       // Clear subject when class changes
       if (watchedClass !== selectedClass) {
         setValue("subject", "");
+        
+        // Filter subjects for the selected class
+        if (watchedClass && teacherClasses) {
+          filterSubjectsForClass(watchedClass, teacherClasses);
+        } else {
+          setAvailableSubjects(subjects);
+        }
       }
     }
-  }, [watchedClass, selectedClass, setValue]);
+  }, [watchedClass, selectedClass, setValue, teacherClasses, subjects]);
 
   // Handle all day changes
   useEffect(() => {
@@ -235,7 +321,7 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
     }
   }, [watchedAllDay, setValue]);
 
-  if (loadingClasses || loadingSubjects) {
+  if (loadingClasses) {
     return <LoadingSpinner />;
   }
 
@@ -291,18 +377,11 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
             <Text as="label" size="2" weight="bold" mb="1">
               Title <span style={{ color: "red" }}>*</span>
             </Text>
-            <TextField.Root>
-              <TextField.Slot>
-                <input
-                  type="text"
-                  {...register("title")}
-                  style={{ color: errors.title ? "red" : undefined }}
-                />
-              </TextField.Slot>
+            <TextField.Root {...register("title")} size="3">
             </TextField.Root>
             {errors.title && (
               <Text size="1" color="red" mt="1">
-                {errors.title.message}
+                  {errors.title?.message}
               </Text>
             )}
           </Box>
@@ -352,31 +431,20 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
             </Text>
             <Flex gap="2" align="center">
               <Box style={{ flexGrow: 1 }}>
-                <TextField.Root>
+                <TextField.Root {...register("start")} size="2" type="date">
                   <TextField.Slot>
                     <CalendarIcon height="16" width="16" />
-                  </TextField.Slot>
-                  <TextField.Slot>
-                    <input
-                      type="date"
-                      {...register("start")}
-                      style={{ color: errors.start ? "red" : undefined }}
-                    />
-                  </TextField.Slot>
+                  </TextField.Slot> 
                 </TextField.Root>
                 {errors.start && (
                   <Text size="1" color="red" mt="1">
-                    {errors.start.message}
+                    {errors.start?.message}
                   </Text>
                 )}
               </Box>
               {!watchedAllDay && (
                 <Box>
-                  <TextField.Root>
-                    <TextField.Slot>
-                      <input type="time" {...register("startTime")} />
-                    </TextField.Slot>
-                  </TextField.Root>
+                  <TextField.Root {...register("startTime")} size="1" type="time"></TextField.Root>
                 </Box>
               )}
             </Flex>
@@ -388,30 +456,20 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
             </Text>
             <Flex gap="2" align="center">
               <Box style={{ flexGrow: 1 }}>
-                <TextField.Root>
+                <TextField.Root {...register("end")} size="2" type="date">
                   <TextField.Slot>
                     <CalendarIcon height="16" width="16" />
-                  </TextField.Slot>
-                  <TextField.Slot>
-                    <input
-                      type="date"
-                      {...register("end")}
-                      style={{ color: errors.end ? "red" : undefined }}
-                    />
                   </TextField.Slot>
                 </TextField.Root>
                 {errors.end && (
                   <Text size="1" color="red" mt="1">
-                    {errors.end.message}
+                    {errors.end?.message}
                   </Text>
                 )}
               </Box>
               {!watchedAllDay && (
                 <Box>
-                  <TextField.Root>
-                    <TextField.Slot>
-                      <input type="time" {...register("endTime")} />
-                    </TextField.Slot>
+                  <TextField.Root {...register("endTime")} size="1" type="time">
                   </TextField.Root>
                 </Box>
               )}
@@ -442,10 +500,8 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
             <Text as="label" size="2" weight="bold" mb="1">
               Location
             </Text>
-            <TextField.Root>
-              <TextField.Slot>
-                <input type="text" {...register("location")} />
-              </TextField.Slot>
+            <TextField.Root {...register("location")} size="3">
+             
             </TextField.Root>
           </Box>
 
@@ -470,8 +526,8 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
                     <Select.Group>
                       <Select.Label>Classes</Select.Label>
                       <Select.Item value="none">None</Select.Item>
-                      {classes?.map((cls) => (
-                        <Select.Item key={cls._id} value={cls._id}>
+                      {classes && classes.map((cls) => (
+                        <Select.Item key={cls.id} value={cls.id}>
                           {cls.name}
                         </Select.Item>
                       ))}
@@ -507,8 +563,8 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
                     <Select.Group>
                       <Select.Label>Subjects</Select.Label>
                       <Select.Item value="none">None</Select.Item>
-                      {subjects?.map((subject) => (
-                        <Select.Item key={subject._id} value={subject._id}>
+                      {availableSubjects && availableSubjects.map((subject) => (
+                        <Select.Item key={subject.id} value={subject.id}>
                           {subject.name}
                         </Select.Item>
                       ))}
@@ -525,14 +581,8 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
           <Text as="label" size="2" weight="bold" mb="1">
             Description
           </Text>
-          <TextField.Root>
-            <TextField.Slot>
-              <textarea
-                {...register("description")}
-                rows={4}
-                style={{ width: "100%", resize: "vertical" }}
-              />
-            </TextField.Slot>
+          <TextField.Root {...register("description")} size="3">
+           
           </TextField.Root>
         </Box>
 
@@ -589,15 +639,9 @@ const CalendarEventForm: React.FC<CalendarEventFormProps> = ({
                   <Text as="label" size="2" weight="bold" mb="1">
                     End Date
                   </Text>
-                  <TextField.Root>
+                  <TextField.Root {...register("recurring.endRecurring")} size="3" type="date">
                     <TextField.Slot>
                       <CalendarIcon height="16" width="16" />
-                    </TextField.Slot>
-                    <TextField.Slot>
-                      <input
-                        type="date"
-                        {...register("recurring.endRecurring")}
-                      />
                     </TextField.Slot>
                   </TextField.Root>
                 </Box>

@@ -115,6 +115,12 @@ export const assignmentService = {
     return response.data.data;
   },
 
+  // Publish assignment
+  async publishAssignment(id: string): Promise<Assignment> {
+    const response = await api.put(`/assignments/${id}/publish`);
+    return response.data.data;
+  },
+
   // Delete assignment
   async deleteAssignment(id: string): Promise<void> {
     await api.delete(`/assignments/${id}`);

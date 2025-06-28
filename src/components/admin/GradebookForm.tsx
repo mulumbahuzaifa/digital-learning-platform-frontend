@@ -10,7 +10,8 @@ import {
   Select, 
   TextField,
   Table,
-  IconButton
+  IconButton,
+  TextArea
 } from '@radix-ui/themes';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
@@ -24,7 +25,6 @@ import LoadingSpinner from '../ui/LoadingSpinner';
 import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import { Gradebook, CreateGradebookData, UpdateGradebookData } from '../../types';
 
-// Validation schema for gradebook form
 const gradebookSchema = z.object({
   student: z.string().min(1, 'Student is required'),
   class: z.string().min(1, 'Class is required'),
@@ -58,6 +58,8 @@ const gradebookSchema = z.object({
       weight: z.number().min(0, 'Weight must be positive').optional(),
     })
   ).optional(),
+  totalMarks: z.number().min(0, 'Total marks must be positive').optional(),
+  finalGrade: z.enum(['A', 'B', 'C', 'D', 'F']).optional(),
   remarks: z.string().optional(),
 });
 
@@ -117,6 +119,8 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
         date: typeof e.date === 'string' ? e.date.split('T')[0] : new Date(e.date).toISOString().split('T')[0],
         weight: e.weight
       })) || [],
+      totalMarks: initialData.totalMarks,
+      finalGrade: initialData.finalGrade,
       remarks: initialData.remarks || ''
     } : {
       student: '',
@@ -128,11 +132,11 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
       assignments: [],
       tests: [],
       exams: [],
+      totalMarks: undefined,
+      finalGrade: undefined,
       remarks: ''
     }
   });
-
-  // Field arrays for repeating sections
   const { fields: assignmentFields, append: appendAssignment, remove: removeAssignment } = useFieldArray({
     control,
     name: 'assignments'
@@ -148,42 +152,38 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
     name: 'exams'
   });
 
-  // Fetch students data
   const { data: students, isLoading: loadingStudents } = useQuery({
     queryKey: ['users', { role: 'student' }],
     queryFn: () => userService.getAllUsers({ role: 'student' }),
   });
 
-  // Fetch teachers data
   const { data: teachers, isLoading: loadingTeachers } = useQuery({
     queryKey: ['users', { role: 'teacher' }],
     queryFn: () => userService.getAllUsers({ role: 'teacher' }),
   });
 
-  // Fetch classes data
   const { data: classes, isLoading: loadingClasses } = useQuery({
     queryKey: ['classes'],
     queryFn: () => classService.getAllClasses(),
   });
 
-  // Fetch subjects data
   const { data: subjects, isLoading: loadingSubjects } = useQuery({
     queryKey: ['subjects'],
-    queryFn: () => subjectService.getAllSubjects(),
+    queryFn: async () => {
+      const response = await subjectService.getAllSubjects();
+      return response.data || [];
+    },
   });
 
-  // Fetch assignments data for selected subject
   const { data: assignments, isLoading: loadingAssignments } = useQuery({
     queryKey: ['assignments', { subject: selectedSubject }],
     queryFn: () => assignmentService.getAllAssignments({ subject: selectedSubject }),
     enabled: !!selectedSubject,
   });
 
-  // Watch class and subject to handle dependencies
   const watchedClass = watch('class');
   const watchedSubject = watch('subject');
 
-  // Update local state when the form values change
   useEffect(() => {
     if (watchedClass !== selectedClass) {
       setSelectedClass(watchedClass);
@@ -193,33 +193,106 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
   useEffect(() => {
     if (watchedSubject !== selectedSubject) {
       setSelectedSubject(watchedSubject);
-      // Clear assignments when subject changes
       setValue('assignments', []);
     }
   }, [watchedSubject, selectedSubject, setValue]);
+
+  const calculateTotalMarks = () => {
+    let total = 0;
+    let assignmentTotal = 0;
+    let testTotal = 0;
+    let examTotal = 0;
+    
+    const assignmentsValues = watch('assignments') || [];
+    const testsValues = watch('tests') || [];
+    const examsValues = watch('exams') || [];
+    
+    // Calculate assignment marks with weights
+    if (assignmentsValues.length > 0) {
+      assignmentsValues.forEach(assignment => {
+        if (assignment.marks) {
+          const marks = Number(assignment.marks);
+          const weight = assignment.weight ? Number(assignment.weight) : 1;
+          assignmentTotal += marks * weight;
+        }
+      });
+    }
+    
+    // Calculate test marks with weights
+    if (testsValues.length > 0) {
+      testsValues.forEach(test => {
+        if (test.marks) {
+          const marks = Number(test.marks);
+          const weight = test.weight ? Number(test.weight) : 1;
+          testTotal += marks * weight;
+        }
+      });
+    }
+    
+    // Calculate exam marks with weights
+    if (examsValues.length > 0) {
+      examsValues.forEach(exam => {
+        if (exam.marks) {
+          const marks = Number(exam.marks);
+          const weight = exam.weight ? Number(exam.weight) : 1;
+          examTotal += marks * weight;
+        }
+      });
+    }
+    
+    // Calculate total (simple average for now)
+    total = (assignmentTotal + testTotal + examTotal) / 
+      (assignmentsValues.length + testsValues.length + examsValues.length || 1);
+    
+    // Round to 2 decimal places
+    total = Math.round(total * 100) / 100;
+    
+    // Set the total marks in the form
+    setValue('totalMarks', total);
+    
+    // Suggest a grade based on the total
+    suggestGrade(total);
+  };
+  
+  // Suggest a grade based on total marks
+  const suggestGrade = (totalMarks: number) => {
+    let grade: "A" | "B" | "C" | "D" | "F" | undefined;
+    
+    if (totalMarks >= 90) {
+      grade = "A";
+    } else if (totalMarks >= 80) {
+      grade = "B";
+    } else if (totalMarks >= 70) {
+      grade = "C";
+    } else if (totalMarks >= 60) {
+      grade = "D";
+    } else if (totalMarks > 0) {
+      grade = "F";
+    } else {
+      grade = undefined;
+    }
+    
+    setValue('finalGrade', grade);
+  };
 
   if (loadingStudents || loadingTeachers || loadingClasses || loadingSubjects) {
     return <LoadingSpinner />;
   }
 
   const handleFormSubmit = async (data: GradebookFormData) => {
-    // Format the data for API
     const formattedData = {
       ...data,
       term: data.term as "Term 1" | "Term 2" | "Term 3",
-      // Convert marks to numbers for assignments
       assignments: data.assignments?.map(a => ({
         ...a,
         marks: Number(a.marks),
         weight: a.weight ? Number(a.weight) : undefined,
       })),
-      // Convert marks to numbers for tests
       tests: data.tests?.map(t => ({
         ...t,
         marks: Number(t.marks),
         weight: t.weight ? Number(t.weight) : undefined,
       })),
-      // Convert marks to numbers for exams
       exams: data.exams?.map(e => ({
         ...e,
         marks: Number(e.marks),
@@ -236,7 +309,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
         <Heading size="4">{mode === 'create' ? 'Create' : 'Edit'} Gradebook Entry</Heading>
         
         <Grid columns={{ initial: "1", md: "2" }} gap="4">
-          {/* Student Selection */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
               Student <span style={{ color: 'red' }}>*</span>
@@ -274,8 +346,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
-          {/* Class Selection */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
               Class <span style={{ color: 'red' }}>*</span>
@@ -313,8 +383,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
-          {/* Subject Selection */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
               Subject <span style={{ color: 'red' }}>*</span>
@@ -352,8 +420,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
-          {/* Teacher Selection */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
               Teacher <span style={{ color: 'red' }}>*</span>
@@ -391,19 +457,15 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
-          {/* Academic Year */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
               Academic Year <span style={{ color: 'red' }}>*</span>
             </Text>
             <TextField.Root>
-              <TextField.Slot>
-                <input
-                  type="text"
-                  {...register('academicYear')}
-                  style={{ color: errors.academicYear ? 'red' : undefined }}
-                />
+              <TextField.Slot
+               {...register('academicYear')}
+               style={{ color: errors.academicYear ? 'red' : undefined }}>
+               
               </TextField.Slot>
             </TextField.Root>
             {errors.academicYear && (
@@ -412,8 +474,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
-          {/* Term */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
               Term <span style={{ color: 'red' }}>*</span>
@@ -447,8 +507,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
             )}
           </Box>
         </Grid>
-
-        {/* Assignments Section */}
         <Card>
           <Flex direction="column" gap="3">
             <Flex justify="between" align="center">
@@ -503,9 +561,7 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                         />
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="number"
                               min="0"
                               {...register(`assignments.${index}.marks` as const, { valueAsNumber: true })}
@@ -514,31 +570,21 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                                 width: '100%'
                               }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="number"
                               min="0"
                               max="100"
                               {...register(`assignments.${index}.weight` as const, { valueAsNumber: true })}
                               style={{ width: '100%' }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
-                              type="text"
+                        <TextField.Root size="2"         type="text"
                               {...register(`assignments.${index}.feedback` as const)}
-                              style={{ width: '100%' }}
-                            />
-                          </TextField.Slot>
+                              style={{ width: '100%' }}>
+                   
                         </TextField.Root>
                       </Table.Cell>
                       <Table.Cell>
@@ -560,8 +606,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
             )}
           </Flex>
         </Card>
-
-        {/* Tests Section */}
         <Card>
           <Flex direction="column" gap="3">
             <Flex justify="between" align="center">
@@ -589,23 +633,17 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                   {testFields.map((field, index) => (
                     <Table.Row key={field.id}>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
-                              type="text"
+                        <TextField.Root size="2"          type="text"
                               {...register(`tests.${index}.name` as const)}
                               style={{ 
                                 color: errors.tests?.[index]?.name ? 'red' : undefined,
                                 width: '100%'
-                              }}
-                            />
-                          </TextField.Slot>
+                              }}>
+                    
                         </TextField.Root>
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="number"
                               min="0"
                               {...register(`tests.${index}.marks` as const, { valueAsNumber: true })}
@@ -614,13 +652,10 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                                 width: '100%'
                               }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
+                   
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="date"
                               {...register(`tests.${index}.date` as const)}
                               style={{ 
@@ -628,21 +663,17 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                                 width: '100%'
                               }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
+                    
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="number"
                               min="0"
                               max="100"
                               {...register(`tests.${index}.weight` as const, { valueAsNumber: true })}
                               style={{ width: '100%' }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
+                    
                       </Table.Cell>
                       <Table.Cell>
                         <IconButton 
@@ -663,8 +694,6 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
             )}
           </Flex>
         </Card>
-
-        {/* Exams Section */}
         <Card>
           <Flex direction="column" gap="3">
             <Flex justify="between" align="center">
@@ -692,23 +721,17 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                   {examFields.map((field, index) => (
                     <Table.Row key={field.id}>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
-                              type="text"
+                        <TextField.Root size="2"        type="text"
                               {...register(`exams.${index}.name` as const)}
                               style={{ 
                                 color: errors.exams?.[index]?.name ? 'red' : undefined,
                                 width: '100%'
-                              }}
-                            />
-                          </TextField.Slot>
+                              }}>
+                   
                         </TextField.Root>
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="number"
                               min="0"
                               {...register(`exams.${index}.marks` as const, { valueAsNumber: true })}
@@ -717,13 +740,10 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                                 width: '100%'
                               }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
+                    
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="date"
                               {...register(`exams.${index}.date` as const)}
                               style={{ 
@@ -731,21 +751,17 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
                                 width: '100%'
                               }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
+                    
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
+                      <input
                               type="number"
                               min="0"
                               max="100"
                               {...register(`exams.${index}.weight` as const, { valueAsNumber: true })}
                               style={{ width: '100%' }}
                             />
-                          </TextField.Slot>
-                        </TextField.Root>
+                    
                       </Table.Cell>
                       <Table.Cell>
                         <IconButton 
@@ -766,24 +782,16 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
             )}
           </Flex>
         </Card>
-
-        {/* Remarks */}
         <Box>
           <Text as="label" size="2" weight="bold" mb="1">
             Remarks
           </Text>
-          <TextField.Root>
-            <TextField.Slot>
-              <textarea
-                {...register('remarks')}
-                rows={4}
-                style={{ width: '100%', resize: 'vertical' }}
-              />
-            </TextField.Slot>
-          </TextField.Root>
+         <TextArea
+         {...register('remarks')}
+         rows={4}
+         style={{ width: '100%', resize: 'vertical' }}>
+         </TextArea>
         </Box>
-
-        {/* Form Actions */}
         <Flex gap="3" justify="end">
           <Button 
             type="submit"
@@ -799,5 +807,4 @@ const GradebookForm: React.FC<GradebookFormProps> = ({
     </form>
   );
 };
-
-export default GradebookForm; 
+export default GradebookForm;

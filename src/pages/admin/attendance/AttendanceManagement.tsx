@@ -115,17 +115,11 @@ const AttendanceManagement = () => {
         <Flex direction="column" gap="4">
           <Flex justify="between" align="center" wrap="wrap" gap="3">
             <Box style={{ minWidth: '250px', flexGrow: 1 }}>
-              <TextField.Root>
+              <TextField.Root placeholder="Search by class..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}>
                 <TextField.Slot>
                   <MagnifyingGlassIcon height="16" width="16" />
-                </TextField.Slot>
-                <TextField.Slot>
-                  <input
-                    type="text"
-                    placeholder="Search by class..."
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                  />
                 </TextField.Slot>
               </TextField.Root>
             </Box>
@@ -145,17 +139,12 @@ const AttendanceManagement = () => {
                   ))}
                 </Select.Content>
               </Select.Root>
-
-              <TextField.Root>
-                <TextField.Slot>
                   <input
                     type="date"
                     value={dateFilter}
                     onChange={handleDateFilterChange}
                     placeholder="Filter by date"
                   />
-                </TextField.Slot>
-              </TextField.Root>
             </Flex>
           </Flex>
 
@@ -183,7 +172,7 @@ const AttendanceManagement = () => {
                 paginatedAttendance.map((attendance) => (
                   <Table.Row key={attendance._id}>
                     <Table.Cell>{getClassName(attendance)}</Table.Cell>
-                    <Table.Cell>{formatDate(attendance.date)}</Table.Cell>
+                    <Table.Cell>{formatDate(attendance.date as string)}</Table.Cell>
                     <Table.Cell>{attendance.session}</Table.Cell>
                     <Table.Cell>{attendance.records.length}</Table.Cell>
                     <Table.Cell>{getRecorderName(attendance)}</Table.Cell>

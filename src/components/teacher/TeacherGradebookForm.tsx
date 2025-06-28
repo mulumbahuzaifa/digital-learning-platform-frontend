@@ -20,7 +20,17 @@ import { useQuery } from '@tanstack/react-query';
 import { assignmentService } from '../../services/assignmentService';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
-import { Gradebook, CreateGradebookData, UpdateGradebookData, Class, Subject, User } from '../../types';
+import { 
+  Gradebook, 
+  CreateGradebookData, 
+  UpdateGradebookData, 
+  Class, 
+  Subject, 
+  User,
+  GradebookAssignment,
+  GradebookTest,
+  GradebookExam
+} from '../../types';
 
 // Validation schema for gradebook form
 const gradebookSchema = z.object({
@@ -53,13 +63,6 @@ const gradebookSchema = z.object({
       marks: z.number().min(0, 'Marks must be positive'),
       date: z.string().min(1, 'Date is required'),
       weight: z.number().min(0, 'Weight must be positive').optional(),
-    })
-  ).optional(),
-  rubrics: z.array(
-    z.object({
-      criteria: z.string().min(1, 'Criteria is required'),
-      marks: z.number().min(0, 'Marks must be positive'),
-      comment: z.string().optional(),
     })
   ).optional(),
   remarks: z.string().optional(),
@@ -139,11 +142,6 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
         date: typeof e.date === 'string' ? e.date.split('T')[0] : new Date(e.date).toISOString().split('T')[0],
         weight: e.weight
       })) || [],
-      rubrics: initialData.rubrics?.map(r => ({
-        criteria: r.criteria,
-        marks: r.marks,
-        comment: r.comment
-      })) || [],
       remarks: initialData.remarks || '',
       finalGrade: initialFinalGrade,
       totalMarks: initialData.totalMarks || 0
@@ -156,7 +154,6 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
       assignments: [],
       tests: [],
       exams: [],
-      rubrics: [],
       remarks: '',
       finalGrade: undefined,
       totalMarks: 0
@@ -179,33 +176,18 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
     name: 'exams'
   });
 
-  const { fields: rubricFields, append: appendRubric, remove: removeRubric } = useFieldArray({
-    control,
-    name: 'rubrics'
-  });
-
   // Process approved students from the selected class data
   useEffect(() => {
     if (selectedClass && classes) {
-      const selectedClassObj = classes.find((c: any) => c._id === selectedClass);
+      const selectedClassObj = classes.find((c: any) => c.class._id === selectedClass);
       
       if (selectedClassObj && selectedClassObj.students) {
-        // Filter only approved students
-        const filteredStudents = selectedClassObj.students
-        //   .filter((studentEntry: any) => studentEntry.status === 'approved')
-          .map((studentEntry: any) => {
-            // Handle both object and string references
-            const student = studentEntry.student;
-            if (typeof student === 'string') {
-              return { _id: student, firstName: 'Unknown', lastName: 'Student' };
-            } else {
-              return { 
-                _id: student._id, 
-                firstName: student.firstName || '', 
-                lastName: student.lastName || '' 
-              };
-            }
-          });
+        // Get students directly from the students array
+        const filteredStudents = selectedClassObj.students.map((student: any) => ({
+          _id: student._id,
+          firstName: student.firstName || '',
+          lastName: student.lastName || ''
+        }));
           
         setApprovedStudents(filteredStudents);
       } else {
@@ -272,12 +254,6 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
         sum + (exam.marks || 0), 0);
     }
     
-    // Add rubric marks
-    if (formValues.rubrics && formValues.rubrics.length > 0) {
-      total += formValues.rubrics.reduce((sum, rubric) => 
-        sum + (rubric.marks || 0), 0);
-    }
-    
     return total;
   };
 
@@ -294,9 +270,9 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
   // Update total marks and grade when form values change
   useEffect(() => {
     const subscription = watch((value, { name, type }) => {
-      // Only recalculate if assignments, tests, exams, or rubrics change
+      // Only recalculate if assignments, tests, exams change
       if (name?.includes('assignments') || name?.includes('tests') || 
-          name?.includes('exams') || name?.includes('rubrics')) {
+          name?.includes('exams')) {
         const total = calculateTotalMarks();
         setCalculatedTotalMarks(total);
         
@@ -335,43 +311,48 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
     const finalGrade = calculateGrade(totalMarks);
     
     // Format the data for API
-    const formattedData = {
-      ...data,
-      totalMarks,
-      finalGrade,
+    const formattedData: CreateGradebookData = {
+      student: data.student,
+      class: data.class,
+      subject: data.subject,
+      academicYear: data.academicYear,
       term: data.term as "Term 1" | "Term 2" | "Term 3",
+      // Add calculated total marks and grade
+      totalMarks: totalMarks,
+      finalGrade: finalGrade,
       // Convert marks to numbers for assignments
       assignments: data.assignments?.map(a => ({
-        ...a,
+        assignment: a.assignment,
         marks: Number(a.marks),
         weight: a.weight ? Number(a.weight) : undefined,
+        feedback: a.feedback
       })),
       // Convert marks to numbers for tests
       tests: data.tests?.map(t => ({
-        ...t,
+        name: t.name,
         marks: Number(t.marks),
+        date: t.date,
         weight: t.weight ? Number(t.weight) : undefined,
       })),
       // Convert marks to numbers for exams
       exams: data.exams?.map(e => ({
-        ...e,
+        name: e.name,
         marks: Number(e.marks),
+        date: e.date,
         weight: e.weight ? Number(e.weight) : undefined,
       })),
-      // Convert marks to numbers for rubrics
-      rubrics: data.rubrics?.map(r => ({
-        ...r,
-        marks: Number(r.marks),
-      })),
+      remarks: data.remarks
     };
 
-    await onSubmit(formattedData as any); // Safe to cast since we've ensured correct types
+    await onSubmit(formattedData);
   };
+
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)}>
       <Flex direction="column" gap="5">
         <Grid columns={{ initial: "1", md: "2" }} gap="4">
+          <Flex direction="column" gap="3">
           {/* Class Selection */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
@@ -396,8 +377,8 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
                     <Select.Group>
                       <Select.Label>Classes</Select.Label>
                       {classes?.map(cls => (
-                        <Select.Item key={cls._id} value={cls._id}>
-                          {cls.name}
+                        <Select.Item key={cls.class._id} value={cls.class._id}>
+                          {cls.class.name}
                         </Select.Item>
                       ))}
                     </Select.Group>
@@ -411,7 +392,6 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
           {/* Subject Selection */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
@@ -451,7 +431,6 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
           {/* Student Selection */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
@@ -472,6 +451,7 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
                     variant="soft"
                     color={errors.student ? 'red' : undefined}
                   />
+                  
                   <Select.Content>
                     <Select.Group>
                       <Select.Label>Students</Select.Label>
@@ -497,7 +477,7 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
               </Text>
             )}
           </Box>
-
+          </Flex>
           {/* Academic Year */}
           <Box>
             <Text as="label" size="2" weight="bold" mb="1">
@@ -610,39 +590,22 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
                       />
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input 
-                            type="number"
-                            placeholder="Marks"
-                            {...register(`assignments.${index}.marks` as const, { 
-                              valueAsNumber: true 
-                            })}
-                          />
-                        </TextField.Slot>
+                      <TextField.Root size="2" {...register(`assignments.${index}.marks` as const, { 
+                        valueAsNumber: true 
+                      })}>
+                    
                       </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
-                            type="number"
-                            placeholder="Weight"
-                            {...register(`assignments.${index}.weight` as const, { 
-                              valueAsNumber: true 
-                            })}
-                          />
-                        </TextField.Slot>
+                      <TextField.Root size="2" {...register(`assignments.${index}.weight` as const, { 
+                        valueAsNumber: true 
+                      })}>
+
                       </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
-                            placeholder="Feedback"
-                            {...register(`assignments.${index}.feedback` as const)}
-                          />
-                        </TextField.Slot>
+                      <TextField.Root size="2" {...register(`assignments.${index}.feedback` as const)}>
+
                       </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
@@ -689,41 +652,32 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
                 {testFields.map((field, index) => (
                   <Table.Row key={field.id}>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
-                            placeholder="Test name"
+                      <TextField.Root size="2" placeholder="Test name"
                             {...register(`tests.${index}.name` as const)}
-                          />
-                        </TextField.Slot>
+                            style={{ width: '100%' }}
+                            >
                       </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
+      
                           <input
                             type="number"
                             placeholder="Marks"
                             {...register(`tests.${index}.marks` as const, { 
                               valueAsNumber: true 
                             })}
-                          />
-                        </TextField.Slot>
-                      </TextField.Root>
+                            />
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
+            
                           <input
                             type="date"
                             {...register(`tests.${index}.date` as const)}
                           />
-                        </TextField.Slot>
-                      </TextField.Root>
+               
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
+               
                           <input
                             type="number"
                             placeholder="Weight"
@@ -731,8 +685,7 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
                               valueAsNumber: true 
                             })}
                           />
-                        </TextField.Slot>
-                      </TextField.Root>
+          
                     </Table.Cell>
                     <Table.Cell>
                       <IconButton 
@@ -777,50 +730,30 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
                 {examFields.map((field, index) => (
                   <Table.Row key={field.id}>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
-                            placeholder="Exam name"
-                            {...register(`exams.${index}.name` as const)}
-                          />
-                        </TextField.Slot>
+                      <TextField.Root size="2" placeholder="Exam name"
+                            {...register(`exams.${index}.name` as const)}>
+                       
                       </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
+                      <input
                             type="number"
                             placeholder="Marks"
-                            {...register(`exams.${index}.marks` as const, { 
-                              valueAsNumber: true 
-                            })}
+                            {...register(`exams.${index}.marks` as const, { valueAsNumber: true })}
                           />
-                        </TextField.Slot>
-                      </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
+                      <input
                             type="date"
                             {...register(`exams.${index}.date` as const)}
                           />
-                        </TextField.Slot>
-                      </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
+                      <input
                             type="number"
                             placeholder="Weight"
-                            {...register(`exams.${index}.weight` as const, { 
-                              valueAsNumber: true 
-                            })}
+                            {...register(`exams.${index}.weight` as const, { valueAsNumber: true })}
                           />
-                        </TextField.Slot>
-                      </TextField.Root>
                     </Table.Cell>
                     <Table.Cell>
                       <IconButton 
@@ -846,136 +779,38 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
           </Button>
         </Card>
 
-        {/* Rubrics */}
+        {/* Total Marks and Grade */}
         <Card mt="4">
-          <Heading size="3" mb="3">Rubrics</Heading>
-          
-          {rubricFields.length > 0 && (
-            <Table.Root mb="3">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeaderCell>Criteria</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell>Marks</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell>Comment</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell></Table.ColumnHeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {rubricFields.map((field, index) => (
-                  <Table.Row key={field.id}>
-                    <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
-                            placeholder="Criteria"
-                            {...register(`rubrics.${index}.criteria` as const)}
-                          />
-                        </TextField.Slot>
-                      </TextField.Root>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
-                            type="number"
-                            placeholder="Marks"
-                            {...register(`rubrics.${index}.marks` as const, { 
-                              valueAsNumber: true 
-                            })}
-                          />
-                        </TextField.Slot>
-                      </TextField.Root>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <TextField.Root size="2">
-                        <TextField.Slot>
-                          <input
-                            placeholder="Comment"
-                            {...register(`rubrics.${index}.comment` as const)}
-                          />
-                        </TextField.Slot>
-                      </TextField.Root>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <IconButton 
-                        size="1" 
-                        variant="soft" 
-                        color="red" 
-                        onClick={() => removeRubric(index)}
-                      >
-                        <TrashIcon />
-                      </IconButton>
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
-          )}
-          
-          <Button 
-            variant="soft" 
-            onClick={() => appendRubric({ criteria: '', marks: 0, comment: '' })}
-          >
-            <PlusIcon /> Add Rubric
-          </Button>
-        </Card>
-
-        {/* Calculated Results */}
-        <Card mt="4">
-          <Heading size="3" mb="3">Calculated Results</Heading>
-          <Grid columns={{ initial: "1", sm: "2" }} gap="4">
+          <Heading size="3" mb="3">Summary</Heading>
+          <Grid columns={{ initial: "1", md: "2" }} gap="4">
             <Box>
               <Text as="label" size="2" weight="bold" mb="1">
                 Total Marks
               </Text>
-              <TextField.Root>
-                <TextField.Slot>
-                  <input
-                    type="number"
-                    disabled
-                    value={calculatedTotalMarks}
-                    {...register('totalMarks')}
-                  />
-                </TextField.Slot>
-              </TextField.Root>
+              <Text size="4" weight="medium" color="blue">
+                {calculatedTotalMarks}
+              </Text>
             </Box>
-            
             <Box>
               <Text as="label" size="2" weight="bold" mb="1">
                 Final Grade
               </Text>
-              <Controller
-                control={control}
-                name="finalGrade"
-                render={({ field }) => (
-                  <Select.Root
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    size="3"
-                  >
-                    <Select.Trigger 
-                      placeholder="Select grade"
-                      variant="soft"
-                    />
-                    <Select.Content>
-                      <Select.Item value="A">A (90-100)</Select.Item>
-                      <Select.Item value="B">B (80-89)</Select.Item>
-                      <Select.Item value="C">C (70-79)</Select.Item>
-                      <Select.Item value="D">D (60-69)</Select.Item>
-                      <Select.Item value="F">F (Below 60)</Select.Item>
-                    </Select.Content>
-                  </Select.Root>
-                )}
-              />
-              {calculatedGrade && (
-                <Text size="1" mt="1">
-                  Calculated grade: {calculatedGrade}
-                </Text>
-              )}
+              <Text 
+                size="4" 
+                weight="bold" 
+                color={
+                  calculatedGrade === 'A' ? 'green' : 
+                  calculatedGrade === 'B' ? 'blue' : 
+                  calculatedGrade === 'C' ? 'orange' : 
+                  calculatedGrade === 'D' ? 'amber' : 'red'
+                }
+              >
+                {calculatedGrade}
+              </Text>
             </Box>
           </Grid>
         </Card>
-
+        
         {/* Remarks */}
         <Box mt="4">
           <Text as="label" size="2" weight="bold" mb="1">
@@ -1001,4 +836,4 @@ const TeacherGradebookForm: React.FC<TeacherGradebookFormProps> = ({
   );
 };
 
-export default TeacherGradebookForm; 
+export default TeacherGradebookForm;

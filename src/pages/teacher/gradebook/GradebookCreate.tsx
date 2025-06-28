@@ -29,25 +29,19 @@ const GradebookCreate = () => {
 
     // Loop through each class
     classes.forEach((classData: any) => {
-      if (classData.subjects) {
-        // Loop through each subject in the class
-        classData.subjects.forEach((classSubject: any) => {
-          // Check if this subject has an approved teacher entry for the current teacher
-          const isApprovedTeacher = classSubject.teachers && 
-            classSubject.teachers.some((teacher: any) => 
-              teacher.status === 'approved' && 
-              teacher.teacher._id === currentUser.data?._id
-            );
-          
-          // Extract subject data
-          const subjectData = typeof classSubject.subject === 'string'
-            ? { _id: classSubject.subject, name: 'Unknown', code: '' }
-            : classSubject.subject;
-          
-          // If teacher is approved for this subject and we haven't added it yet
-          if (isApprovedTeacher && subjectData && !subjectMap.has(subjectData._id)) {
-            subjectMap.set(subjectData._id, subjectData);
-            authorizedSubjects.push(subjectData);
+      // Extract enrolled students' subjects
+      if (classData.enrolledStudents) {
+        classData.enrolledStudents.forEach((enrollment: any) => {
+          if (enrollment.enrollmentDetails?.subjects) {
+            enrollment.enrollmentDetails.subjects.forEach((subjectEntry: any) => {
+              const subjectData = subjectEntry.subject;
+              
+              // If we haven't added this subject yet
+              if (subjectData && !subjectMap.has(subjectData._id)) {
+                subjectMap.set(subjectData._id, subjectData);
+                authorizedSubjects.push(subjectData);
+              }
+            });
           }
         });
       }
@@ -58,6 +52,18 @@ const GradebookCreate = () => {
 
   // Get subjects the teacher is authorized to teach
   const subjects = extractSubjectsFromClasses();
+
+  // Format classes data for the form
+  const formatClassesForForm = () => {
+    if (!classes) return [];
+    
+    return classes.map((classData: any) => ({
+      class: classData.class || classData,
+      students: classData.enrolledStudents?.map((enrollment: any) => enrollment.student) || []
+    }));
+  };
+
+  const formattedClasses = formatClassesForForm();
 
   // Handle loading states
   if (isLoadingClasses) {
@@ -82,7 +88,7 @@ const GradebookCreate = () => {
         mode="create"
         onSubmit={handleSubmit}
         isSubmitting={createGradebook.isPending}
-        classes={classes || []}
+        classes={formattedClasses || []}
         subjects={subjects || []}
       />
     </Card>

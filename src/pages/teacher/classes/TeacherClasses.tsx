@@ -13,7 +13,6 @@ import {
   DropdownMenu,
 } from "@radix-ui/themes";
 import {
-  PlusIcon,
   Pencil1Icon,
   PersonIcon,
   MagnifyingGlassIcon,
@@ -40,9 +39,7 @@ const TeacherClasses = () => {
       return response as TeacherClass[];
     },
   });
-  console.log("====================================");
-  console.log(classes);
-  console.log("====================================");
+
   // Filter classes based on search term
   const filteredClasses = classes?.filter(
     (cls) =>
@@ -102,11 +99,11 @@ const TeacherClasses = () => {
               Manage your classes, subjects, and schedules
             </Text>
           </Box>
-          <Button asChild size="3">
+          {/* <Button asChild size="3">
             <Link to="/teacher/classes/create">
               <PlusIcon /> Create New Class
             </Link>
-          </Button>
+          </Button> */}
         </Flex>
 
         {/* Stats Overview Cards */}
@@ -221,9 +218,6 @@ const TeacherClasses = () => {
                 No classes match your search criteria. Try modifying your search
                 or create a new class.
               </Text>
-              <Button asChild mt="3">
-                <Link to="/teacher/classes/create">Create New Class</Link>
-              </Button>
             </Flex>
           </Card>
         )}

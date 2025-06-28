@@ -120,7 +120,7 @@ const GradebookView = () => {
           {gradebook.isPublished && gradebook.publishedAt && (
             <Box>
               <Text size="2" weight="bold">Published On:</Text>
-              <Text size="3">{formatDate(gradebook.publishedAt)}</Text>
+              <Text size="3">{formatDate(gradebook.publishedAt as string)}</Text>
             </Box>
           )}
         </Grid>
@@ -178,7 +178,7 @@ const GradebookView = () => {
                   <Table.Row key={index}>
                     <Table.Cell>{test.name}</Table.Cell>
                     <Table.Cell>{test.marks}</Table.Cell>
-                    <Table.Cell>{formatDate(test.date)}</Table.Cell>
+                    <Table.Cell>{formatDate(test.date as string)}</Table.Cell>
                     <Table.Cell>{test.weight || 'N/A'}</Table.Cell>
                   </Table.Row>
                 ))}
@@ -207,7 +207,7 @@ const GradebookView = () => {
                   <Table.Row key={index}>
                     <Table.Cell>{exam.name}</Table.Cell>
                     <Table.Cell>{exam.marks}</Table.Cell>
-                    <Table.Cell>{formatDate(exam.date)}</Table.Cell>
+                    <Table.Cell>{formatDate(exam.date as string)}</Table.Cell>
                     <Table.Cell>{exam.weight || 'N/A'}</Table.Cell>
                   </Table.Row>
                 ))}

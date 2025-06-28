@@ -15,8 +15,15 @@ export const attendanceService = {
 
   // Get teacher's attendance records
   getTeacherAttendance: async (params?: AttendanceFilterParams): Promise<Attendance[]> => {
-    const response = await api.get('/attendance', { params });
-    return response.data.data;
+    try {
+      console.log('Requesting attendance data with params:', params);
+      const response = await api.get('/attendance', { params });
+      console.log('API response:', response);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching attendance records:', error);
+      return [];
+    }
   },
 
   // Get a single attendance record by ID
@@ -27,8 +34,22 @@ export const attendanceService = {
 
   // Create a new attendance record
   createAttendance: async (data: CreateAttendanceData): Promise<Attendance> => {
-    const response = await api.post('/attendance', data);
-    return response.data.data;
+    try {
+      console.log('Creating attendance with data:', data);
+      console.log('Records structure:', data.records);
+      const response = await api.post('/attendance', data);
+      console.log('API response:', response);
+      return response.data.data;
+    } catch (err) {
+      const error = err as any;
+      console.error('Error in createAttendance service:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        data: error.response?.data
+      });
+      throw error;
+    }
   },
 
   // Update an existing attendance record

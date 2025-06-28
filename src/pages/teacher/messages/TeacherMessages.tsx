@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   Flex,
@@ -22,12 +22,14 @@ import {
   PaperPlaneIcon,
 } from "@radix-ui/react-icons";
 import { messageService } from "../../../services/messageService";
+import { classService } from "../../../services/classService";
 import { Message, CreateMessageData } from "../../../types";
 import LoadingSpinner from "../../../components/ui/LoadingSpinner";
 import { format } from "date-fns";
+import { useMessageMutation } from "../../../hooks/useMessageMutation";
+import { TeacherClass } from "../../../types/class";
 
 const TeacherMessages = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRecipient, setSelectedRecipient] = useState<string>("");
   const [selectedClass, setSelectedClass] = useState<string>("");
@@ -42,27 +44,82 @@ const TeacherMessages = () => {
     queryFn: () => messageService.getMessages(),
   });
 
-  // Send message mutation
-  const sendMessageMutation = useMutation({
-    mutationFn: (data: CreateMessageData) => messageService.sendMessage(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      setIsDialogOpen(false);
-      setMessageContent("");
-      setSelectedRecipient("");
-      setSelectedClass("");
+  // Fetch teacher's classes
+  const { data: classes, isLoading: isLoadingClasses } = useQuery<TeacherClass[]>({
+    queryKey: ["teacher-classes"],
+    queryFn: async () => {
+      const response = await classService.getMyClasses();
+      console.log('Teacher Classes Data:', response);
+      return response as TeacherClass[];
     },
   });
 
-  // Delete message mutation
-  const deleteMessageMutation = useMutation({
-    mutationFn: (id: string) => messageService.deleteMessage(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      setDeleteDialogOpen(false);
-      setMessageToDelete(null);
-    },
-  });
+  console.log(messages)
+  // Extract all students from all classes
+  const allStudents = useMemo(() => {
+    if (!classes) return [];
+    
+    const students: {
+      _id: string;
+      firstName: string;
+      lastName: string;
+      email?: string;
+      classId: string;
+      className: string;
+    }[] = [];
+
+    classes.forEach(classItem => {
+      if (classItem.enrolledStudents && classItem.enrolledStudents.length > 0) {
+        classItem.enrolledStudents.forEach(enrollment => {
+          // Handle case where student is directly in the enrollment object
+          if (enrollment.student) {
+            students.push({
+              _id: enrollment.student._id,
+              firstName: enrollment.student.firstName,
+              lastName: enrollment.student.lastName,
+              email: enrollment.student.email,
+              classId: classItem.class._id,
+              className: classItem.class.name
+            });
+          }
+          // Handle case where enrollment might have a different structure
+          else if ('enrollmentDetails' in enrollment) {
+            // This is for the structure in your example data
+            const enrollmentWithDetails = enrollment as unknown as {
+              student: {
+                _id: string;
+                firstName: string;
+                lastName: string;
+                email?: string;
+              };
+              enrollmentDetails: {
+                academicYear: string;
+                term: string;
+                status: string;
+              };
+            };
+            
+            if (enrollmentWithDetails.student) {
+              students.push({
+                _id: enrollmentWithDetails.student._id,
+                firstName: enrollmentWithDetails.student.firstName,
+                lastName: enrollmentWithDetails.student.lastName,
+                email: enrollmentWithDetails.student.email,
+                classId: classItem.class._id,
+                className: classItem.class.name
+              });
+            }
+          }
+        });
+      }
+    });
+    
+    console.log('Extracted Students:', students);
+    return students;
+  }, [classes]);
+
+  // Use message mutations
+  const { createMessage, deleteMessage: deleteMutation } = useMessageMutation();
 
   const handleSendMessage = () => {
     if (!messageContent || (!selectedRecipient && !selectedClass)) return;
@@ -73,7 +130,14 @@ const TeacherMessages = () => {
       ...(selectedClass && { class: selectedClass }),
     };
 
-    sendMessageMutation.mutate(messageData);
+    createMessage.mutate(messageData, {
+      onSuccess: () => {
+        setIsDialogOpen(false);
+        setMessageContent("");
+        setSelectedRecipient("");
+        setSelectedClass("");
+      }
+    });
   };
 
   // Filter messages based on search term
@@ -119,8 +183,10 @@ const TeacherMessages = () => {
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>Sender</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Recipient</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Content</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Date</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Privacy</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
             </Table.Row>
@@ -145,9 +211,22 @@ const TeacherMessages = () => {
                       </Text>
                     </Flex>
                   </Table.Cell>
+                  <Table.Cell>
+                    <Flex align="center" gap="2">
+                      <PersonIcon />
+                      <Text>
+                        {message.recipient?.firstName} {message.recipient?.lastName}
+                      </Text>
+                    </Flex>
+                  </Table.Cell>
                   <Table.Cell>{message.content}</Table.Cell>
                   <Table.Cell>
                     {format(new Date(message.createdAt), "PPp")}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Badge color={message.isGroupMessage ? "green" : "red"}>
+                      {message.isGroupMessage ? "Public" : "Private"}
+                    </Badge>
                   </Table.Cell>
                   <Table.Cell>
                     <Badge color={message.isRead ? "green" : "yellow"}>
@@ -179,7 +258,7 @@ const TeacherMessages = () => {
         <Dialog.Content>
           <Dialog.Title>New Message</Dialog.Title>
           <Dialog.Description size="2" mb="4">
-            Send a message to a recipient or class
+            Send a message to a student or class
           </Dialog.Description>
 
           <Flex direction="column" gap="3">
@@ -187,30 +266,47 @@ const TeacherMessages = () => {
               value={selectedRecipient}
               onValueChange={setSelectedRecipient}
             >
-              <Select.Trigger placeholder="Select recipient" />
+              <Select.Trigger placeholder="Select student recipient" />
               <Select.Content>
-                {/* Add recipient options here */}
-                <Select.Item value="recipient1">John Doe</Select.Item>
-                <Select.Item value="recipient2">Jane Smith</Select.Item>
+                {isLoadingClasses ? (
+                  <Select.Item value="loading">Loading students...</Select.Item>
+                ) : allStudents.length > 0 ? (
+                  allStudents.map((student) => (
+                    <Select.Item key={student._id} value={student._id}>
+                      {student.firstName} {student.lastName} ({student.className})
+                    </Select.Item>
+                  ))
+                ) : (
+                  <Select.Item value="no-students">No students found</Select.Item>
+                )}
               </Select.Content>
             </Select.Root>
+
+            <Text size="2" color="gray">OR</Text>
 
             <Select.Root value={selectedClass} onValueChange={setSelectedClass}>
-              <Select.Trigger placeholder="Or select a class" />
+              <Select.Trigger placeholder="Select a class" />
               <Select.Content>
-                {/* Add class options here */}
-                <Select.Item value="class1">Class A</Select.Item>
-                <Select.Item value="class2">Class B</Select.Item>
+                {isLoadingClasses ? (
+                  <Select.Item value="loading">Loading classes...</Select.Item>
+                ) : classes && classes.length > 0 ? (
+                  classes.map((classItem) => (
+                    <Select.Item key={classItem.class._id} value={classItem.class._id}>
+                      {classItem.class.name} ({classItem.class.code})
+                    </Select.Item>
+                  ))
+                ) : (
+                  <Select.Item value="no-classes">No classes found</Select.Item>
+                )}
               </Select.Content>
             </Select.Root>
 
-            <TextField.Root>
-              <TextArea
-                placeholder="Type your message..."
-                value={messageContent}
-                onChange={(e) => setMessageContent(e.target.value)}
-              />
-            </TextField.Root>
+          <TextArea
+            className="w-full"
+            placeholder="Type your message..."
+            value={messageContent}
+            onChange={(e) => setMessageContent(e.target.value)}
+          />
           </Flex>
 
           <Flex gap="3" mt="4" justify="end">
@@ -222,10 +318,18 @@ const TeacherMessages = () => {
             <Button
               onClick={handleSendMessage}
               disabled={
-                !messageContent || (!selectedRecipient && !selectedClass)
+                createMessage.isPending || 
+                !messageContent || 
+                (!selectedRecipient && !selectedClass)
               }
             >
-              <PaperPlaneIcon /> Send Message
+              {createMessage.isPending ? (
+                <LoadingSpinner />
+              ) : (
+                <>
+                  <PaperPlaneIcon /> Send Message
+                </>
+              )}
             </Button>
           </Flex>
         </Dialog.Content>
@@ -254,11 +358,11 @@ const TeacherMessages = () => {
                 color="red"
                 onClick={() =>
                   messageToDelete &&
-                  deleteMessageMutation.mutate(messageToDelete)
+                  deleteMutation.mutate(messageToDelete)
                 }
-                disabled={deleteMessageMutation.isPending}
+                disabled={deleteMutation.isPending}
               >
-                {deleteMessageMutation.isPending ? (
+                {deleteMutation.isPending ? (
                   <LoadingSpinner />
                 ) : (
                   "Delete"

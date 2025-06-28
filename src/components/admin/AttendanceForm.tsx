@@ -10,7 +10,9 @@ import {
   Select, 
   TextField,
   Table,
-  IconButton
+  Badge,
+  Callout,
+  TextArea
 } from '@radix-ui/themes';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
@@ -20,14 +22,16 @@ import { userService } from '../../services/userService';
 import { classService } from '../../services/classService';
 import { subjectService } from '../../services/subjectService';
 import LoadingSpinner from '../ui/LoadingSpinner';
-import { CalendarIcon } from '@radix-ui/react-icons';
+import { CalendarIcon, InfoCircledIcon } from '@radix-ui/react-icons';
 import { 
   Attendance, 
   AttendanceSession, 
   AttendanceStatus,
   CreateAttendanceData, 
   UpdateAttendanceData,
-  ClassStudent
+  ClassStudent,
+  User,
+  Class
 } from '../../types';
 
 // Validation schema for attendance form
@@ -38,6 +42,7 @@ const attendanceSchema = z.object({
   session: z.enum(['morning', 'afternoon', 'full-day'], {
     errorMap: () => ({ message: 'Session is required' }),
   }),
+  notes: z.string().optional(),
   records: z.array(
     z.object({
       student: z.string().min(1, 'Student is required'),
@@ -62,6 +67,11 @@ interface AttendanceFormProps {
   isSubmitAttendancePending?: boolean;
 }
 
+// Extended Class interface to include students property
+interface ClassWithStudents extends Class {
+  students: ClassStudent[];
+}
+
 const AttendanceForm: React.FC<AttendanceFormProps> = ({
   initialData,
   mode,
@@ -74,6 +84,8 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
     typeof initialData?.class === 'string' ? initialData.class : initialData?.class?._id || ''
   );
   const [classStudents, setClassStudents] = useState<ClassStudent[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<Array<{_id: string, name: string, code: string}>>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
 
   const { 
     control, 
@@ -86,11 +98,12 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
     resolver: zodResolver(attendanceSchema),
     defaultValues: initialData ? {
       class: typeof initialData.class === 'string' ? initialData.class : initialData.class._id,
-      subject: typeof initialData.subject === 'string' ? initialData.subject : initialData.subject?._id,
+      subject: typeof initialData.subject === 'string' ? initialData.subject : initialData.subject?._id || '',
       date: typeof initialData.date === 'string' 
         ? initialData.date.split('T')[0] 
         : new Date(initialData.date).toISOString().split('T')[0],
       session: initialData.session,
+      notes: initialData.notes || '',
       records: initialData.records.map(record => ({
         student: typeof record.student === 'string' ? record.student : record.student._id,
         status: record.status,
@@ -103,14 +116,9 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
       subject: '',
       date: new Date().toISOString().split('T')[0],
       session: 'full-day' as AttendanceSession,
+      notes: '',
       records: [],
     }
-  });
-
-  // Fetch teachers data
-  const { data: teachers, isLoading: loadingTeachers } = useQuery({
-    queryKey: ['users', { role: 'teacher' }],
-    queryFn: () => userService.getAllUsers({ role: 'teacher' }),
   });
 
   // Fetch classes data
@@ -119,14 +127,15 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
     queryFn: () => classService.getAllClasses(),
   });
 
-  // Fetch subjects data
-  const { data: subjects, isLoading: loadingSubjects } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => subjectService.getAllSubjects(),
+  // Fetch all students for name display
+  const { data: students, isLoading: loadingStudents } = useQuery({
+    queryKey: ['users', { role: 'student' }],
+    queryFn: () => userService.getAllUsers({ role: 'student' }),
   });
 
   // Watch class to handle dependencies
   const watchedClass = watch('class');
+  const watchedSubject = watch('subject');
 
   // Update local state when the form values change
   useEffect(() => {
@@ -134,25 +143,59 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
       setSelectedClass(watchedClass);
       // Reset records when class changes
       setValue('records', []);
+      // Reset subject when class changes
+      setValue('subject', '');
     }
   }, [watchedClass, selectedClass, setValue]);
 
-  // Get students of the selected class
+  // Load subjects for the selected class
   useEffect(() => {
     if (selectedClass && classes) {
-      const selectedClassData = classes.find(c => c._id === selectedClass);
-      if (selectedClassData && selectedClassData.students) {
-        // Filter out any student records with missing student data
-        const validStudents = selectedClassData.students.filter(cs => 
-          cs.student && (typeof cs.student === 'string' || cs.student._id)
-        );
-        setClassStudents(validStudents);
+      const selectedClassData = classes.find(c => c._id === selectedClass) as ClassWithStudents;
+      if (selectedClassData && selectedClassData.subjects) {
+        const subjects = selectedClassData.subjects.map(subject => ({
+          _id: typeof subject.subject === 'string' ? subject.subject : subject.subject._id,
+          name: typeof subject.subject === 'string' ? '' : subject.subject.name,
+          code: typeof subject.subject === 'string' ? '' : subject.subject.code
+        })).filter(subject => subject.name); // Filter out any subjects without names
+        
+        setAvailableSubjects(subjects);
+      } else {
+        setAvailableSubjects([]);
+      }
+    } else {
+      setAvailableSubjects([]);
+    }
+  }, [selectedClass, classes]);
+
+  // Get students of the selected class
+  useEffect(() => {
+    const fetchStudents = async () => {
+      if (selectedClass && classes) {
+        setIsLoadingStudents(true);
+        try {
+          const selectedClassData = classes.find(c => c._id === selectedClass) as ClassWithStudents;
+          if (selectedClassData && selectedClassData.students) {
+            // Filter out any student records with missing student data
+            const validStudents = selectedClassData.students.filter((cs: ClassStudent) => 
+              cs.student && (typeof cs.student === 'string' || cs.student._id)
+            );
+            setClassStudents(validStudents);
+          } else {
+            setClassStudents([]);
+          }
+        } catch (error) {
+          console.error("Error fetching students:", error);
+          setClassStudents([]);
+        } finally {
+          setIsLoadingStudents(false);
+        }
       } else {
         setClassStudents([]);
       }
-    } else {
-      setClassStudents([]);
-    }
+    };
+    
+    fetchStudents();
   }, [selectedClass, classes]);
 
   // Initialize records for all students in the class
@@ -171,7 +214,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
     }
   }, [classStudents, mode, setValue, watch]);
 
-  if (loadingTeachers || loadingClasses || loadingSubjects) {
+  if (loadingClasses || loadingStudents) {
     return <LoadingSpinner />;
   }
 
@@ -188,7 +231,11 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
       }))
     };
 
-    await onSubmit(formattedData);
+    try {
+      await onSubmit(formattedData);
+    } catch (error) {
+      console.error("Error submitting attendance form:", error);
+    }
   };
 
   const handleStatusChange = (index: number, status: AttendanceStatus) => {
@@ -213,6 +260,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
   const getStudentName = (studentId: string) => {
     if (!studentId) return 'Unknown Student';
     
+    // First try to find student in classStudents
     const studentRecord = classStudents.find(
       cs => cs.student && (
         typeof cs.student === 'string' 
@@ -221,11 +269,19 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
       )
     );
     
-    if (!studentRecord || !studentRecord.student) return studentId;
+    if (studentRecord && typeof studentRecord.student !== 'string' && 
+        studentRecord.student.firstName && studentRecord.student.lastName) {
+      return `${studentRecord.student.firstName} ${studentRecord.student.lastName}`;
+    }
     
-    return typeof studentRecord.student === 'string'
-      ? studentRecord.student
-      : `${studentRecord.student.firstName || ''} ${studentRecord.student.lastName || ''}`.trim() || studentId;
+    // If not found or only ID is available, try to find in students list
+    const studentUser = students?.find(student => student._id === studentId);
+    if (studentUser) {
+      return `${studentUser.firstName} ${studentUser.lastName}`;
+    }
+    
+    // If still not found, return the ID
+    return studentId;
   };
 
   // Mark all as present
@@ -307,18 +363,25 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
                   value={field.value || 'none'}
                   onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
                   size="3"
+                  disabled={!selectedClass || availableSubjects.length === 0}
                 >
                   <Select.Trigger 
-                    placeholder="Select a subject" 
+                    placeholder={
+                      !selectedClass 
+                        ? "Select a class first" 
+                        : availableSubjects.length === 0
+                          ? "No subjects available"
+                          : "Select a subject"
+                    } 
                     variant="soft"
                   />
                   <Select.Content>
                     <Select.Group>
                       <Select.Label>Subjects</Select.Label>
                       <Select.Item value="none">None</Select.Item>
-                      {subjects?.map(subject => (
+                      {availableSubjects.map(subject => (
                         <Select.Item key={subject._id} value={subject._id}>
-                          {subject.name}
+                          {subject.name} ({subject.code})
                         </Select.Item>
                       ))}
                     </Select.Group>
@@ -333,18 +396,13 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
             <Text as="label" size="2" weight="bold" mb="1">
               Date <span style={{ color: 'red' }}>*</span>
             </Text>
-            <TextField.Root>
-              <TextField.Slot>
-                <CalendarIcon height="16" width="16" />
-              </TextField.Slot>
-              <TextField.Slot>
-                <input
-                  type="date"
-                  {...control.register('date')}
-                  style={{ color: errors.date ? 'red' : undefined }}
-                />
-              </TextField.Slot>
-            </TextField.Root>
+    
+              <input
+                type="date"
+                {...control.register('date')}
+                style={{ color: errors.date ? 'red' : undefined }}
+              />
+      
             {errors.date && (
               <Text size="1" color="red" mt="1">
                 {errors.date.message}
@@ -387,6 +445,16 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
           </Box>
         </Grid>
 
+        <Box>
+          <Text as="label" size="2" weight="bold" mb="1">
+            Notes (Optional)
+          </Text>
+          <TextArea
+            placeholder="Add any additional notes here..." 
+            {...control.register('notes')}
+          />
+        </Box>
+
         {/* Attendance Records */}
         <Card>
           <Flex direction="column" gap="3">
@@ -414,7 +482,11 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
               </Flex>
             </Flex>
             
-            {watch('records').length > 0 ? (
+            {isLoadingStudents ? (
+              <Flex justify="center" py="4">
+                <LoadingSpinner />
+              </Flex>
+            ) : watch('records').length > 0 ? (
               <Table.Root>
                 <Table.Header>
                   <Table.Row>
@@ -448,48 +520,55 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
                         </Select.Root>
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
-                              type="time"
-                              value={record.timeIn || ''}
-                              onChange={(e) => handleTimeChange(index, 'timeIn', e.target.value)}
-                              style={{ width: '100%' }}
-                            />
-                          </TextField.Slot>
-                        </TextField.Root>
+                      
+                          <input
+                            type="time"
+                            value={record.timeIn || ''}
+                            onChange={(e) => handleTimeChange(index, 'timeIn', e.target.value)}
+                            style={{ width: '100%' }}
+                          />
+                       
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
-                              type="time"
-                              value={record.timeOut || ''}
-                              onChange={(e) => handleTimeChange(index, 'timeOut', e.target.value)}
-                              style={{ width: '100%' }}
-                            />
-                          </TextField.Slot>
-                        </TextField.Root>
+               
+                          <input
+                            type="time"
+                            value={record.timeOut || ''}
+                            onChange={(e) => handleTimeChange(index, 'timeOut', e.target.value)}
+                            style={{ width: '100%' }}
+                          />
+                
                       </Table.Cell>
                       <Table.Cell>
-                        <TextField.Root size="2">
-                          <TextField.Slot>
-                            <input
-                              type="text"
-                              value={record.remark || ''}
-                              onChange={(e) => handleRemarkChange(index, e.target.value)}
-                              placeholder="Add remarks"
-                              style={{ width: '100%' }}
-                            />
-                          </TextField.Slot>
+                        <TextField.Root size="2" value={record.remark || ''}
+                          onChange={(e) => handleRemarkChange(index, e.target.value)}
+                          placeholder="Add remarks"
+                          style={{ width: '100%' }}>
+                           
                         </TextField.Root>
                       </Table.Cell>
                     </Table.Row>
                   ))}
                 </Table.Body>
               </Table.Root>
+            ) : selectedClass ? (
+              <Callout.Root color="amber">
+                <Callout.Icon>
+                  <InfoCircledIcon />
+                </Callout.Icon>
+                <Callout.Text>
+                  No students available for this class or all students are pending approval.
+                </Callout.Text>
+              </Callout.Root>
             ) : (
-              <Text size="2" color="gray">No students available for this class</Text>
+              <Callout.Root>
+                <Callout.Icon>
+                  <InfoCircledIcon />
+                </Callout.Icon>
+                <Callout.Text>
+                  Please select a class to load students.
+                </Callout.Text>
+              </Callout.Root>
             )}
           </Flex>
         </Card>
@@ -508,7 +587,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
           )}
           <Button 
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || watch('records').length === 0}
           >
             {isSubmitting 
               ? (mode === 'create' ? 'Creating...' : 'Updating...') 

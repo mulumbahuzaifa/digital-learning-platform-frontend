@@ -13,14 +13,16 @@ import {
   TextField,
   Select,
   TextArea,
-  IconButton
+  Grid,
+  Separator
 } from '@radix-ui/themes';
 import { 
   PlusIcon, 
-  TrashIcon,
-  DownloadIcon,
   MagnifyingGlassIcon,
-  CheckIcon
+  CheckIcon,
+  CalendarIcon,
+  BookmarkIcon,
+  PersonIcon
 } from '@radix-ui/react-icons';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 import { attendanceService } from '../../../services/attendanceService';
@@ -31,70 +33,540 @@ import toast from 'react-hot-toast';
 import { 
   Attendance, 
   AttendanceSession, 
-  AttendanceStatus
+  AttendanceStatus,
+  CreateAttendanceData,
+  UpdateAttendanceData
 } from '../../../types';
-import { ClassFromIndex } from '../../../types/class';
+import { TeacherClass } from '../../../types/class';
+import { Link } from 'react-router-dom';
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
-// This is a workaround for the ClassUnion type from classService
-type ClassWithStudents = {
-  _id: string;
-  name: string;
-  students: Array<{
-    student: {
-      _id: string;
-      firstName: string;
-      lastName: string;
-      email?: string;
-    };
-    status: string;
-    enrollmentType: string;
-    enrolledBy: string;
-    _id?: string;
-    enrollmentDate?: string;
-  }>;
-  subjects: any[];
-};
+// Schema for student record in attendance
+const studentRecordSchema = z.object({
+  student: z.string().min(1, "Student is required"),
+  studentName: z.string(),
+  status: z.enum(["present", "absent", "late", "excused"] as const),
+  remark: z.string().optional(),
+  timeIn: z.string().optional(),
+  timeOut: z.string().optional()
+});
 
-interface StudentRecordData {
+// Schema for creating attendance
+const createAttendanceSchema = z.object({
+  class: z.string().min(1, "Class is required"),
+  subject: z.string().min(1, "Subject is required"),
+  date: z.string().min(1, "Date is required"),
+  session: z.enum(["morning", "afternoon", "full-day"] as const),
+  notes: z.string().optional(),
+  records: z.array(studentRecordSchema)
+});
+
+// Schema for updating attendance
+const updateAttendanceSchema = z.object({
+  subject: z.string().min(1, "Subject is required"),
+  notes: z.string().optional(),
+  records: z.array(studentRecordSchema)
+});
+
+// Types based on schemas
+type StudentRecordData = z.infer<typeof studentRecordSchema>;
+type CreateAttendanceFormData = z.infer<typeof createAttendanceSchema>;
+type UpdateAttendanceFormData = z.infer<typeof updateAttendanceSchema>;
+
+// Update the type for student records
+type StudentRecord = {
   student: string;
   studentName: string;
   status: AttendanceStatus;
   remark?: string;
   timeIn?: string;
   timeOut?: string;
-}
+};
+
+// Add Record Dialog Form Component
+const AddAttendanceForm = ({
+  onSubmit,
+  isSubmitting,
+  classes,
+  onClose
+}: {
+  onSubmit: (data: CreateAttendanceFormData) => Promise<void>;
+  isSubmitting: boolean;
+  classes: TeacherClass[];
+  onClose: () => void;
+}) => {
+  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<CreateAttendanceFormData>({
+    resolver: zodResolver(createAttendanceSchema),
+    defaultValues: {
+      date: new Date().toISOString().split('T')[0],
+      session: 'morning',
+      records: [],
+      subject: ''
+    }
+  });
+
+  const { fields, replace } = useFieldArray({
+    control,
+    name: 'records'
+  });
+
+  const selectedClass = watch('class');
+  const [availableSubjects, setAvailableSubjects] = useState<Array<{id: string, name: string, code: string}>>([]);
+
+  // Update available subjects when class changes
+  useEffect(() => {
+    if (selectedClass && classes) {
+      console.log('Selected Class:', selectedClass);
+      console.log('Available Classes:', classes);
+      
+      const classObj = classes.find((cls) => cls.class._id === selectedClass);
+      console.log('Found Class Object:', classObj);
+      
+      if (classObj && classObj.subjects) {
+        const subjects = classObj.subjects.map(subject => ({
+          id: subject._id,
+          name: subject.name,
+          code: subject.code
+        }));
+        console.log('Available Subjects:', subjects);
+        setAvailableSubjects(subjects);
+        
+        // Reset subject selection when class changes
+        setValue('subject', '');
+        // Reset student records when class changes
+        replace([]);
+      } else {
+        setAvailableSubjects([]);
+      }
+    }
+  }, [selectedClass, classes, setValue, replace]);
+
+  // Update student records when class changes
+  useEffect(() => {
+    if (selectedClass && classes) {
+      const classObj = classes.find((cls) => cls.class._id === selectedClass);
+      if (classObj && classObj.enrolledStudents && classObj.enrolledStudents.length > 0) {
+        const studentRecords: StudentRecord[] = classObj.enrolledStudents
+          .map(enrolledStudent => {
+            // Check if student property exists in the enrolledStudent object
+            if (enrolledStudent.student) {
+              return {
+                student: enrolledStudent.student._id,
+                studentName: `${enrolledStudent.student.firstName} ${enrolledStudent.student.lastName}`,
+                status: 'present',
+                remark: ''
+              };
+            } else {
+              // Handle case where enrollment might not have student property
+              console.warn('Enrolled student missing student data:', enrolledStudent);
+              return null;
+            }
+          }).filter(record => record !== null) as StudentRecord[];
+        
+        replace(studentRecords);
+      }
+    }
+  }, [selectedClass, classes, replace]);
+
+  const onFormSubmit = async (data: CreateAttendanceFormData) => {
+    try {
+      await onSubmit(data);
+      onClose();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onFormSubmit)}>
+      <Flex direction="column" gap="3">
+        <Flex gap="2">
+          <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Class
+            </Text>
+            <Controller
+              name="class"
+              control={control}
+              render={({ field }) => (
+                <Select.Root onValueChange={field.onChange} value={field.value}>
+                  <Select.Trigger placeholder="Select a class" />
+                  <Select.Content>
+                    {classes?.map((cls) => (
+                      <Select.Item key={cls.class._id} value={cls.class._id}>
+                        {cls.class.name}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select.Root>
+              )}
+            />
+            {errors.class && (
+              <Text size="1" color="red">{errors.class.message}</Text>
+            )}
+          </Box>
+
+          <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Subject
+            </Text>
+            <Controller
+              name="subject"
+              control={control}
+              render={({ field }) => (
+                <Select.Root 
+                  onValueChange={field.onChange} 
+                  value={field.value}
+                  disabled={!selectedClass || availableSubjects.length === 0}
+                >
+                  <Select.Trigger placeholder={
+                    !selectedClass 
+                      ? "Select a class first" 
+                      : availableSubjects.length === 0
+                        ? "No subjects available"
+                        : "Select a subject"
+                  } />
+                  <Select.Content>
+                    {availableSubjects.map((subject) => (
+                      <Select.Item key={subject.id} value={subject.id}>
+                        {subject.name} ({subject.code})
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select.Root>
+              )}
+            />
+            {errors.subject && (
+              <Text size="1" color="red">{errors.subject.message}</Text>
+            )}
+          </Box>
+        </Flex>
+        <Flex gap="2">
+        <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Session
+            </Text>
+            <Controller
+              name="session"
+              control={control}
+              render={({ field }) => (
+                <Select.Root onValueChange={field.onChange} value={field.value}>
+                  <Select.Trigger />
+                  <Select.Content>
+                    <Select.Item value="morning">Morning</Select.Item>
+                    <Select.Item value="afternoon">Afternoon</Select.Item>
+                    <Select.Item value="full-day">Full Day</Select.Item>
+                  </Select.Content>
+                </Select.Root>
+              )}
+            />
+            {errors.session && (
+              <Text size="1" color="red">{errors.session.message}</Text>
+            )}
+          </Box>
+
+          <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Date
+            </Text>
+            <input
+              type="date"
+              {...register('date')}
+              className="rounded-ls"
+            />
+            {errors.date && (
+              <Text size="1" color="red">{errors.date.message}</Text>
+            )}
+          </Box>
+        </Flex>
+
+        <Box>
+          <Text as="div" size="2" mb="1" weight="bold">
+            Notes
+          </Text>
+          <TextArea
+            {...register('notes')}
+            placeholder="Add notes..."
+            style={{ minHeight: '80px' }}
+          />
+        </Box>
+
+        {fields.length > 0 && (
+          <Box mt="3">
+            <Text as="div" size="2" mb="2" weight="bold">
+              Students
+            </Text>
+            <Table.Root>
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>Remark</Table.ColumnHeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {fields.map((field, index) => (
+                  <Table.Row key={field.id}>
+                    <Table.Cell>{field.studentName}</Table.Cell>
+                    <Table.Cell>
+                      <Controller
+                        name={`records.${index}.status`}
+                        control={control}
+                        render={({ field }) => (
+                          <Select.Root onValueChange={field.onChange} value={field.value}>
+                            <Select.Trigger />
+                            <Select.Content>
+                              <Select.Item value="present">Present</Select.Item>
+                              <Select.Item value="absent">Absent</Select.Item>
+                              <Select.Item value="late">Late</Select.Item>
+                              <Select.Item value="excused">Excused</Select.Item>
+                            </Select.Content>
+                          </Select.Root>
+                        )}
+                      />
+                    </Table.Cell>
+                    <Table.Cell>
+                      <TextField.Root placeholder="Remark" {...register(`records.${index}.remark`)} />
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+          </Box>
+        )}
+
+        <Flex gap="3" mt="4" justify="end">
+          <Button onClick={onClose} variant="soft" color="gray">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Attendance'}
+          </Button>
+        </Flex>
+      </Flex>
+    </form>
+  );
+};
+
+// Edit Record Dialog Form Component
+const EditAttendanceForm = ({
+  onSubmit,
+  isSubmitting,
+  initialData,
+  onClose
+}: {
+  onSubmit: (data: UpdateAttendanceFormData) => Promise<void>;
+  isSubmitting: boolean;
+  initialData: Attendance;
+  onClose: () => void;
+}) => {
+  const { register, handleSubmit, control, formState: { errors } } = useForm<UpdateAttendanceFormData>({
+    resolver: zodResolver(updateAttendanceSchema),
+    defaultValues: {
+      notes: initialData.notes || '',
+      subject: typeof initialData.subject === 'string' 
+        ? initialData.subject 
+        : initialData.subject?._id || '',
+      records: initialData.records.map(record => ({
+        student: typeof record.student === 'string' ? record.student : record.student._id,
+        studentName: typeof record.student === 'string' 
+          ? 'Unknown Student' 
+          : `${record.student.firstName} ${record.student.lastName}`,
+        status: record.status,
+        remark: record.remark || ''
+      }))
+    }
+  });
+
+  const { fields } = useFieldArray({
+    control,
+    name: 'records'
+  });
+
+  const onFormSubmit = async (data: UpdateAttendanceFormData) => {
+    try {
+      await onSubmit(data);
+      onClose();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onFormSubmit)}>
+      <Flex direction="column" gap="3">
+        <Flex gap="3">
+          <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Class
+            </Text>
+            <Text size="2">
+              {typeof initialData.class === 'string'
+                ? 'Unknown Class'
+                : initialData.class.name}
+            </Text>
+          </Box>
+
+          <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Subject
+            </Text>
+            <Text size="2">
+              {typeof initialData.subject === 'string'
+                ? 'Unknown Subject'
+                : initialData.subject?.name || 'No Subject'}
+            </Text>
+          </Box>
+
+          <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Date
+            </Text>
+            <Text size="2">
+              {format(new Date(initialData.date), 'dd MMM yyyy')}
+            </Text>
+          </Box>
+
+          <Box style={{ flex: 1 }}>
+            <Text as="div" size="2" mb="1" weight="bold">
+              Session
+            </Text>
+            <Text size="2">
+              {initialData.session}
+            </Text>
+          </Box>
+        </Flex>
+
+        <Box>
+          <Text as="div" size="2" mb="1" weight="bold">
+            Notes
+          </Text>
+          <TextArea
+            {...register('notes')}
+            placeholder="Add notes..."
+            style={{ minHeight: '80px' }}
+          />
+        </Box>
+
+        {fields.length > 0 && (
+          <Box mt="3">
+            <Text as="div" size="2" mb="2" weight="bold">
+              Students
+            </Text>
+            <Table.Root>
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>Remark</Table.ColumnHeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {fields.map((field, index) => (
+                  <Table.Row key={field.id}>
+                    <Table.Cell>{field.studentName}</Table.Cell>
+                    <Table.Cell>
+                      <Controller
+                        name={`records.${index}.status`}
+                        control={control}
+                        render={({ field }) => (
+                          <Select.Root onValueChange={field.onChange} value={field.value}>
+                            <Select.Trigger />
+                            <Select.Content>
+                              <Select.Item value="present">Present</Select.Item>
+                              <Select.Item value="absent">Absent</Select.Item>
+                              <Select.Item value="late">Late</Select.Item>
+                              <Select.Item value="excused">Excused</Select.Item>
+                            </Select.Content>
+                          </Select.Root>
+                        )}
+                      />
+                    </Table.Cell>
+                    <Table.Cell>
+                      <TextField.Root>
+                        <input
+                          placeholder="Remark"
+                          {...register(`records.${index}.remark`)}
+                        />
+                      </TextField.Root>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+          </Box>
+        )}
+
+        <Flex gap="3" mt="4" justify="end">
+          <Dialog.Close>
+            <Button variant="soft" color="gray" onClick={onClose}>
+              Cancel
+            </Button>
+          </Dialog.Close>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </Flex>
+      </Flex>
+    </form>
+  );
+};
 
 const TeacherAttendance = () => {
   // State for filters and form
-  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedClass, setSelectedClass] = useState<string>('all_classes');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedSession, setSelectedSession] = useState<AttendanceSession>('morning');
   const [selectedAttendanceId, setSelectedAttendanceId] = useState<string | null>(null);
   const [attendanceRecords, setAttendanceRecords] = useState<Attendance[]>([]);
   const [isAddRecordOpen, setIsAddRecordOpen] = useState(false);
   const [isEditRecordOpen, setIsEditRecordOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [studentRecords, setStudentRecords] = useState<StudentRecordData[]>([]);
   const [notes, setNotes] = useState('');
 
   // Get teacher's classes
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ['teacher-classes'],
-    queryFn: () => classService.getMyClasses(),
+    queryFn: async () => {
+      const response = await classService.getMyClasses();
+      return response as TeacherClass[];
+    },
   });
 
-  // Get attendance records
+  // Test the API call for debugging - using simplified approach
+  useEffect(() => {
+    const testAttendanceApi = async () => {
+      try {
+        const result = await attendanceService.getTeacherAttendance();
+        console.log('Attendance API test result:', result);
+      } catch (error) {
+        console.error('Error testing attendance API:', error);
+      }
+    };
+    
+    testAttendanceApi();
+  }, []);
+
+  // Get attendance records - now loads without requiring a class selection
   const { 
     data: attendanceData, 
     isLoading: isLoadingAttendance,
+    error: attendanceError,
     refetch: refetchAttendance
   } = useQuery({
-    queryKey: ['attendance', { class: selectedClass, date: selectedDate }],
-    queryFn: () => attendanceService.getTeacherAttendance({ 
-      class: selectedClass || undefined,
-      date: selectedDate || undefined
-    }),
-    enabled: !!selectedClass
+    queryKey: ['teacher-attendance'],
+    queryFn: async () => {
+      console.log('Running attendance query without params');
+      
+      const data = await attendanceService.getTeacherAttendance();
+      
+      console.log('Query function returned data:', data);
+      return data;
+    },
+    // Enable by default to show all attendance records
+    enabled: true
   });
 
   // Get specific attendance record
@@ -114,36 +586,40 @@ const TeacherAttendance = () => {
   const { 
     createAttendance, 
     updateAttendance, 
-    deleteAttendance,
     submitAttendance
   } = useAttendanceMutation();
 
   // Update local state when attendance data changes
   useEffect(() => {
+    console.log('Attendance data from query:', attendanceData);
     if (attendanceData) {
       setAttendanceRecords(attendanceData);
+    } else {
+      console.log('No attendance data returned from query');
     }
   }, [attendanceData]);
 
   // Update studentRecords when selected class changes
   useEffect(() => {
-    if (selectedClass && classes) {
-      const classObj = classes.find((cls: any) => cls._id === selectedClass) as ClassWithStudents | undefined;
+    if (selectedClass !== 'all_classes' && classes) {
+      const classObj = classes.find((cls) => cls.class._id === selectedClass);
       
-      if (classObj && classObj.students) {
+      if (classObj && classObj.enrolledStudents && classObj.enrolledStudents.length > 0) {
         // Map students to the format needed for attendance records
-        const mappedStudents = classObj.students
-          .filter((studentEntry) => studentEntry.status === 'approved')
-          .map((studentEntry) => {
-            const student = studentEntry.student;
-            return {
-              student: typeof student === 'string' ? student : student._id,
-              studentName: typeof student === 'string' 
-                ? 'Unknown Student' 
-                : `${student.firstName} ${student.lastName}`,
-              status: 'present' as AttendanceStatus // Default status
-            };
-          });
+        const mappedStudents = classObj.enrolledStudents
+          .map((enrolledStudent) => {
+            // Check if student property exists
+            if (enrolledStudent.student) {
+              const student = enrolledStudent.student;
+              return {
+                student: student._id,
+                studentName: `${student.firstName} ${student.lastName}`,
+                status: 'present' as AttendanceStatus // Default status
+              };
+            }
+            return null;
+          })
+          .filter(record => record !== null) as StudentRecordData[];
           
         setStudentRecords(mappedStudents);
       }
@@ -182,51 +658,91 @@ const TeacherAttendance = () => {
     }
   }, [selectedAttendance]);
 
-  // Handle creating a new attendance record
-  const handleCreateAttendance = async () => {
-    if (!selectedClass || !selectedDate || !selectedSession) {
-      toast.error('Please select class, date, and session');
-      return;
+  // Display error when attendance query fails
+  useEffect(() => {
+    if (attendanceError) {
+      console.error('Attendance query failed:', attendanceError);
+      toast.error('Failed to fetch attendance records. Please try again later.');
     }
+  }, [attendanceError]);
 
+  // Handle creating a new attendance record
+  const handleCreateAttendance = async (data: CreateAttendanceFormData) => {
     try {
+      console.log('Form Data Submitted:', data);
+      console.log('Student Records:', data.records);
+      
+      // Validate class selection
+      if (!data.class || data.class === 'select_class') {
+        toast.error('Please select a valid class');
+        return;
+      }
+      
+      // Validate subject selection
+      if (!data.subject) {
+        toast.error('Please select a subject');
+        return;
+      }
+      
+      // Validate student records
+      if (!data.records || data.records.length === 0) {
+        toast.error('No students found in the selected class');
+        return;
+      }
+      
+      // Validate each student record
+      const validRecords = data.records.filter((record): record is StudentRecord => {
+        if (!record.student || !record.status) {
+          console.error('Invalid student record:', record);
+          return false;
+        }
+        return true;
+      });
+      
+      if (validRecords.length === 0) {
+        toast.error('No valid student records found');
+        return;
+      }
+      
+      // Format the data for the API
       const attendanceData = {
-        class: selectedClass,
-        date: selectedDate,
-        session: selectedSession,
-        records: studentRecords.map(record => ({
+        class: data.class,
+        subject: data.subject,
+        date: data.date,
+        session: data.session,
+        notes: data.notes || '',
+        records: validRecords.map(record => ({
           student: record.student,
           status: record.status,
-          remark: record.remark
-        })),
-        notes: notes
+          remark: record.remark || ''
+        }))
       };
-
+      
+      console.log('Formatted Data for API:', attendanceData);
+      
       await createAttendance.mutateAsync(attendanceData);
-    setIsAddRecordOpen(false);
+      setIsAddRecordOpen(false);
       refetchAttendance();
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       console.error('Error creating attendance:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      toast.error('Failed to create attendance record');
     }
   };
 
   // Handle updating an attendance record
-  const handleUpdateAttendance = async () => {
+  const handleUpdateAttendance = async (data: UpdateAttendanceFormData) => {
     if (!selectedAttendanceId) return;
 
     try {
-      const attendanceData = {
-        records: studentRecords.map(record => ({
-          student: record.student,
-          status: record.status,
-          remark: record.remark
-        })),
-        notes: notes
-      };
-
       await updateAttendance.mutateAsync({
         id: selectedAttendanceId,
-        data: attendanceData
+        data
       });
 
       setIsEditRecordOpen(false);
@@ -244,20 +760,6 @@ const TeacherAttendance = () => {
       refetchAttendance();
     } catch (error) {
       console.error('Error submitting attendance:', error);
-    }
-  };
-
-  // Handle deleting an attendance record
-  const handleDeleteAttendance = async () => {
-    if (!selectedAttendanceId) return;
-
-    try {
-      await deleteAttendance.mutateAsync(selectedAttendanceId);
-      setIsDeleteDialogOpen(false);
-      setSelectedAttendanceId(null);
-      refetchAttendance();
-    } catch (error) {
-      console.error('Error deleting attendance:', error);
     }
   };
 
@@ -292,288 +794,247 @@ const TeacherAttendance = () => {
   // Handle opening the add dialog
   const handleAddAttendance = () => {
     // Reset form state
-    setSelectedClass('');
+    setSelectedClass('select_class');
     setSelectedDate(new Date().toISOString().split('T')[0]);
     setSelectedSession('morning');
     setNotes('');
-    setStudentRecords([]);
     setIsAddRecordOpen(true);
   };
 
-  // Show loading spinner while data is loading
-  if (isLoadingClasses) {
-    return <LoadingSpinner />;
-  }
+  if (isLoadingClasses) return <LoadingSpinner />;
+
+  // Calculate statistics 
+  const totalRecords = attendanceRecords?.length || 0;
+  const totalSubmitted = attendanceRecords?.filter(record => record.isSubmitted).length || 0;
+  const totalPending = totalRecords - totalSubmitted;
+
+  // Group records by class for easier display
+  const recordsByClass = attendanceRecords?.reduce((acc, record) => {
+    const classId = typeof record.class === 'string' ? record.class : record.class._id;
+    const className = typeof record.class === 'string' 
+      ? (classes?.find(c => c.class._id === record.class)?.class.name || 'Unknown Class')
+      : record.class.name;
+    
+    if (!acc[classId]) {
+      acc[classId] = {
+        className: className,
+        records: []
+      };
+    }
+    acc[classId].records.push(record);
+    return acc;
+  }, {} as Record<string, {className: string, records: Attendance[]}>);
 
   return (
     <div className="space-y-6">
-      <Flex justify="between" align="center">
-        <Heading size="6">Attendance Management</Heading>
-        <Flex gap="2">
-          <Button variant="soft" onClick={() => window.print()}>
-            <DownloadIcon />
-            Export
-          </Button>
+      <Flex direction="column" gap="6">
+        {/* Header Section */}
+        <Flex justify="between" align="center" gap="4">
+          <Box>
+            <Heading size="7" mb="1">Attendance Management</Heading>
+            <Text color="gray" size="2">Manage attendance records for your classes</Text>
+          </Box>
           <Button onClick={handleAddAttendance}>
             <PlusIcon />
-            New Record
+            New Attendance Record
           </Button>
         </Flex>
-      </Flex>
 
-      <Card>
-        <Flex direction="column" gap="4" p="4">
-          <Flex justify="between" align="center">
-            <Flex gap="2">
+        {/* Stats Overview */}
+        <Grid columns={{ initial: "1", sm: "3" }} gap="4">
+          <Card variant="surface">
+            <Flex align="center" gap="3">
+              <Box p="3" style={{ background: "var(--blue-3)", borderRadius: "50%" }}>
+                <BookmarkIcon width="24" height="24" color="var(--blue-9)" />
+              </Box>
+              <Flex direction="column">
+                <Text size="6" weight="bold">{totalRecords}</Text>
+                <Text size="2" color="gray">Total Records</Text>
+              </Flex>
+            </Flex>
+          </Card>
+
+          <Card variant="surface">
+            <Flex align="center" gap="3">
+              <Box p="3" style={{ background: "var(--green-3)", borderRadius: "50%" }}>
+                <CheckIcon width="24" height="24" color="var(--green-9)" />
+              </Box>
+              <Flex direction="column">
+                <Text size="6" weight="bold">{totalSubmitted}</Text>
+                <Text size="2" color="gray">Submitted</Text>
+              </Flex>
+            </Flex>
+          </Card>
+
+          <Card variant="surface">
+            <Flex align="center" gap="3">
+              <Box p="3" style={{ background: "var(--amber-3)", borderRadius: "50%" }}>
+                <PersonIcon width="24" height="24" color="var(--amber-9)" />
+              </Box>
+              <Flex direction="column">
+                <Text size="6" weight="bold">{totalPending}</Text>
+                <Text size="2" color="gray">Pending</Text>
+              </Flex>
+            </Flex>
+          </Card>
+        </Grid>
+
+        {/* Filters */}
+        <Card variant="surface">
+          <Flex direction={{ initial: "column", sm: "row" }} gap="3" align="start" justify="between">
+            <Flex gap="3" align="center" wrap="wrap">
+              <Text weight="bold">Filter:</Text>
+              
               <Select.Root 
-                value={selectedClass}
+                size="2" 
+                value={selectedClass} 
                 onValueChange={setSelectedClass}
               >
-                <Select.Trigger placeholder="Select class" />
+                <Select.Trigger placeholder="All Classes" />
                 <Select.Content>
-                  {classes && classes.map((cls: any) => (
-                    <Select.Item key={cls._id} value={cls._id}>
-                      {cls.name}
+                  <Select.Item value="all_classes">All Classes</Select.Item>
+                  {classes?.map((cls) => (
+                    <Select.Item key={cls.class._id} value={cls.class._id}>
+                      {cls.class.name}
                     </Select.Item>
                   ))}
                 </Select.Content>
               </Select.Root>
 
-              <TextField.Root>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </TextField.Root>
-            </Flex>
+              <Box>
+                <TextField.Root>
+                  <TextField.Slot>
+                    <CalendarIcon height="16" width="16" />
+                  </TextField.Slot>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                </TextField.Root>
+              </Box>
 
-            <Button variant="soft">
-              <MagnifyingGlassIcon />
-              Search
-            </Button>
+              <Button variant="soft" onClick={() => refetchAttendance()}>
+                <MagnifyingGlassIcon />
+                Filter
+              </Button>
+            </Flex>
           </Flex>
+        </Card>
 
-          {isLoadingAttendance ? (
-            <LoadingSpinner />
-          ) : selectedClass ? (
-            attendanceRecords && attendanceRecords.length > 0 ? (
-          <Table.Root>
-            <Table.Header>
-              <Table.Row>
+        {/* Attendance Records by Class */}
+        {isLoadingAttendance ? (
+          <LoadingSpinner />
+        ) : attendanceRecords && attendanceRecords.length > 0 ? (
+          Object.entries(recordsByClass || {}).map(([classId, classData]) => (
+            <Card key={classId}>
+              <Box p="4" pb="2">
+                <Heading size="4">{classData.className}</Heading>
+                <Separator my="3" size="4" />
+              </Box>
+              <Table.Root>
+                <Table.Header>
+                  <Table.Row>
                     <Table.ColumnHeaderCell>Date</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>Class</Table.ColumnHeaderCell>
                     <Table.ColumnHeaderCell>Session</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
                     <Table.ColumnHeaderCell>Students</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-                  {attendanceRecords.map((record) => (
-                    <Table.Row key={record._id}>
-                  <Table.Cell>
-                        {format(new Date(record.date), 'dd MMM yyyy')}
-                  </Table.Cell>
-                  <Table.Cell>
-                        {typeof record.class === 'string' 
-                          ? record.class 
-                          : record.class.name}
-                      </Table.Cell>
-                      <Table.Cell>{record.session}</Table.Cell>
-                      <Table.Cell>
-                        <Badge color={record.isSubmitted ? 'green' : 'yellow'}>
-                          {record.isSubmitted ? 'Submitted' : 'Draft'}
-                    </Badge>
-                  </Table.Cell>
-                      <Table.Cell>{record.records?.length || 0} students</Table.Cell>
-                  <Table.Cell>
-                    <Flex gap="2">
-                          <IconButton 
-                            size="1" 
-                            variant="soft" 
-                            onClick={() => handleEditAttendance(record._id)}
-                          >
-                            <PlusIcon />
-                          </IconButton>
-                          {!record.isSubmitted && (
-                            <IconButton 
+                    <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>Recorded By</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {classData.records.map((record) => {
+                    // Handle the teacher name display
+                    const recordedByName = typeof record.recordedBy === 'string'
+                      ? 'Unknown'
+                      : `${record.recordedBy.firstName} ${record.recordedBy.lastName}`;
+                    
+                    return (
+                      <Table.Row key={record._id}>
+                        <Table.Cell>
+                          {format(new Date(record.date), 'dd MMM yyyy')}
+                        </Table.Cell>
+                        <Table.Cell>{record.session}</Table.Cell>
+                        <Table.Cell>{record.records?.length || 0} students</Table.Cell>
+                        <Table.Cell>
+                          <Badge color={record.isSubmitted ? 'green' : 'yellow'}>
+                            {record.isSubmitted ? 'Submitted' : 'Draft'}
+                          </Badge>
+                        </Table.Cell>
+                        <Table.Cell>{recordedByName}</Table.Cell>
+                        <Table.Cell>
+                          <Flex gap="2">
+                            <Button 
                               size="1" 
-                        variant="soft" 
-                        color="green"
-                              onClick={() => handleSubmitAttendance(record._id)}
-                      >
-                        <CheckIcon />
-                            </IconButton>
-                          )}
-                          <IconButton 
-                            size="1" 
-                        variant="soft" 
-                        color="red"
-                            onClick={() => {
-                              setSelectedAttendanceId(record._id);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                          >
-                            <TrashIcon />
-                          </IconButton>
-                    </Flex>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
-            ) : (
-              <Flex direction="column" align="center" justify="center" p="6" gap="4">
-                <Text color="gray" size="3">No attendance records found</Text>
-                <Button onClick={handleAddAttendance}>
-                  <PlusIcon />
-                  Create New Record
-                </Button>
-              </Flex>
-            )
-          ) : (
+                              variant="soft" 
+                              onClick={() => handleEditAttendance(record._id)}
+                            >
+                              View / Edit
+                            </Button>
+                            {!record.isSubmitted && (
+                              <Button 
+                                size="1" 
+                                variant="soft" 
+                                color="green"
+                                onClick={() => handleSubmitAttendance(record._id)}
+                              >
+                                <CheckIcon />
+                                Submit
+                              </Button>
+                            )}
+                            {/* Class details link */}
+                            <Button
+                              size="1"
+                              variant="soft"
+                              asChild
+                            >
+                              <Link to={`/teacher/classes/${classId}/attendance`}>
+                                Class Details
+                              </Link>
+                            </Button>
+                          </Flex>
+                        </Table.Cell>
+                      </Table.Row>
+                    );
+                  })}
+                </Table.Body>
+              </Table.Root>
+            </Card>
+          ))
+        ) : (
+          <Card>
             <Flex direction="column" align="center" justify="center" p="6" gap="4">
-              <Text color="gray" size="3">Please select a class to view attendance records</Text>
+              <Box p="4" style={{ background: "var(--gray-3)", borderRadius: "50%" }}>
+                <CalendarIcon width="32" height="32" />
+              </Box>
+              <Heading size="5">No Attendance Records</Heading>
+              <Text align="center" color="gray">
+                No attendance records found for the selected filters.
+              </Text>
+              <Button onClick={handleAddAttendance}>
+                <PlusIcon />
+                Create New Record
+              </Button>
             </Flex>
-          )}
-        </Flex>
-      </Card>
+          </Card>
+        )}
+      </Flex>
 
       {/* Add Record Dialog */}
       <Dialog.Root open={isAddRecordOpen} onOpenChange={setIsAddRecordOpen}>
         <Dialog.Content style={{ maxWidth: 650 }}>
           <Dialog.Title>New Attendance Record</Dialog.Title>
           <Dialog.Description size="2" mb="4">
-            Create a new attendance record for the class.
+            Create a new attendance record for your class.
           </Dialog.Description>
 
-          <Flex direction="column" gap="3">
-            <Flex gap="3">
-              <Box style={{ flex: 1 }}>
-                <Text as="div" size="2" mb="1" weight="bold">
-                  Class
-                </Text>
-                <Select.Root 
-                  value={selectedClass}
-                  onValueChange={(value) => setSelectedClass(value)}
-                >
-                  <Select.Trigger placeholder="Select class" />
-                  <Select.Content>
-                    {classes && classes.map((cls: any) => (
-                      <Select.Item key={cls._id} value={cls._id}>
-                        {cls.name}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </Box>
-
-              <Box style={{ flex: 1 }}>
-              <Text as="div" size="2" mb="1" weight="bold">
-                Date
-              </Text>
-              <TextField.Root>
-                <input
-                  type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </TextField.Root>
-              </Box>
-            </Flex>
-
-            <Box>
-              <Text as="div" size="2" mb="1" weight="bold">
-                Session
-              </Text>
-              <Select.Root 
-                value={selectedSession}
-                onValueChange={(value: AttendanceSession) => setSelectedSession(value)}
-              >
-                <Select.Trigger />
-                <Select.Content>
-                  <Select.Item value="morning">Morning</Select.Item>
-                  <Select.Item value="afternoon">Afternoon</Select.Item>
-                  <Select.Item value="full-day">Full Day</Select.Item>
-                </Select.Content>
-              </Select.Root>
-            </Box>
-
-            <Box>
-              <Text as="div" size="2" mb="1" weight="bold">
-                Notes
-              </Text>
-            <TextArea
-              placeholder="Add notes..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                style={{ minHeight: '80px' }}
-              />
-            </Box>
-
-            {studentRecords.length > 0 && (
-              <Box mt="3">
-                <Text as="div" size="2" mb="2" weight="bold">
-                  Students
-                </Text>
-                <Table.Root>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>Remark</Table.ColumnHeaderCell>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {studentRecords.map((student) => (
-                      <Table.Row key={student.student}>
-                        <Table.Cell>{student.studentName}</Table.Cell>
-                        <Table.Cell>
-                          <Select.Root 
-                            value={student.status}
-                            onValueChange={(value: AttendanceStatus) => 
-                              handleUpdateStudentStatus(student.student, value)
-                            }
-                          >
-                            <Select.Trigger />
-                            <Select.Content>
-                              <Select.Item value="present">Present</Select.Item>
-                              <Select.Item value="absent">Absent</Select.Item>
-                              <Select.Item value="late">Late</Select.Item>
-                              <Select.Item value="excused">Excused</Select.Item>
-                            </Select.Content>
-                          </Select.Root>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <TextField.Root>
-                            <input
-                              placeholder="Remark"
-                              value={student.remark || ''}
-                              onChange={(e) => 
-                                handleUpdateStudentRemark(student.student, e.target.value)
-                              }
-                            />
-                          </TextField.Root>
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Root>
-              </Box>
-            )}
-          </Flex>
-
-          <Flex gap="3" mt="4" justify="end">
-            <Dialog.Close>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </Dialog.Close>
-            <Button onClick={handleCreateAttendance} disabled={createAttendance.isPending}>
-              {createAttendance.isPending ? 'Creating...' : 'Create Record'}
-            </Button>
-          </Flex>
+          <AddAttendanceForm
+            onSubmit={handleCreateAttendance}
+            isSubmitting={createAttendance.isPending}
+            classes={classes || []}
+            onClose={() => setIsAddRecordOpen(false)}
+          />
         </Dialog.Content>
       </Dialog.Root>
 
@@ -587,137 +1048,16 @@ const TeacherAttendance = () => {
 
           {isLoadingSelectedAttendance ? (
             <LoadingSpinner />
+          ) : selectedAttendance ? (
+            <EditAttendanceForm
+              onSubmit={handleUpdateAttendance}
+              isSubmitting={updateAttendance.isPending}
+              initialData={selectedAttendance}
+              onClose={() => setIsEditRecordOpen(false)}
+            />
           ) : (
-            <Flex direction="column" gap="3">
-              <Flex gap="3">
-                <Box style={{ flex: 1 }}>
-                  <Text as="div" size="2" mb="1" weight="bold">
-                    Class
-                  </Text>
-                  <Text size="2">
-                    {selectedAttendance && typeof selectedAttendance.class === 'object' 
-                      ? selectedAttendance.class.name 
-                      : 'Loading...'}
-                  </Text>
-                </Box>
-
-                <Box style={{ flex: 1 }}>
-                  <Text as="div" size="2" mb="1" weight="bold">
-                    Date
-                  </Text>
-                  <Text size="2">
-                    {selectedAttendance 
-                      ? format(new Date(selectedAttendance.date), 'dd MMM yyyy') 
-                      : 'Loading...'}
-                  </Text>
-                </Box>
-
-                <Box style={{ flex: 1 }}>
-                  <Text as="div" size="2" mb="1" weight="bold">
-                    Session
-                  </Text>
-                  <Text size="2">
-                    {selectedAttendance?.session || 'Loading...'}
-                  </Text>
-                </Box>
-              </Flex>
-
-              <Box>
-                <Text as="div" size="2" mb="1" weight="bold">
-                  Notes
-                </Text>
-                <TextArea
-                  placeholder="Add notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  style={{ minHeight: '80px' }}
-                />
-              </Box>
-
-              {studentRecords.length > 0 && (
-                <Box mt="3">
-                  <Text as="div" size="2" mb="2" weight="bold">
-                    Students
-                  </Text>
-                  <Table.Root>
-                    <Table.Header>
-                      <Table.Row>
-                        <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
-                        <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
-                        <Table.ColumnHeaderCell>Remark</Table.ColumnHeaderCell>
-                      </Table.Row>
-                    </Table.Header>
-                    <Table.Body>
-                      {studentRecords.map((student) => (
-                        <Table.Row key={student.student}>
-                          <Table.Cell>{student.studentName}</Table.Cell>
-                          <Table.Cell>
-                            <Select.Root 
-                              value={student.status}
-                              onValueChange={(value: AttendanceStatus) => 
-                                handleUpdateStudentStatus(student.student, value)
-                              }
-                            >
-                              <Select.Trigger />
-                              <Select.Content>
-                                <Select.Item value="present">Present</Select.Item>
-                                <Select.Item value="absent">Absent</Select.Item>
-                                <Select.Item value="late">Late</Select.Item>
-                                <Select.Item value="excused">Excused</Select.Item>
-                              </Select.Content>
-                            </Select.Root>
-                          </Table.Cell>
-                          <Table.Cell>
-                            <TextField.Root>
-                              <input
-                                placeholder="Remark"
-                                value={student.remark || ''}
-                                onChange={(e) => 
-                                  handleUpdateStudentRemark(student.student, e.target.value)
-                                }
-                              />
-                            </TextField.Root>
-                          </Table.Cell>
-                        </Table.Row>
-                      ))}
-                    </Table.Body>
-                  </Table.Root>
-                </Box>
-              )}
-            </Flex>
+            <Text>Failed to load attendance record.</Text>
           )}
-
-          <Flex gap="3" mt="4" justify="end">
-            <Dialog.Close>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </Dialog.Close>
-            <Button onClick={handleUpdateAttendance} disabled={updateAttendance.isPending}>
-              {updateAttendance.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </Flex>
-        </Dialog.Content>
-      </Dialog.Root>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog.Root open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <Dialog.Content>
-          <Dialog.Title>Delete Attendance Record</Dialog.Title>
-          <Dialog.Description size="2" mb="4">
-            Are you sure you want to delete this attendance record? This action cannot be undone.
-          </Dialog.Description>
-
-          <Flex gap="3" mt="4" justify="end">
-            <Dialog.Close>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </Dialog.Close>
-            <Button color="red" onClick={handleDeleteAttendance} disabled={deleteAttendance.isPending}>
-              {deleteAttendance.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </Flex>
         </Dialog.Content>
       </Dialog.Root>
     </div>
