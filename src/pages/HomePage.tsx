@@ -79,34 +79,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Stats Section */}
-      <div className="bg-gray-800 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
-              Trusted by learners worldwide
-            </h2>
-            <p className="mt-3 text-xl text-orange-100">
-              Join our community of students advancing their careers.
-            </p>
-          </div>
-          <div className="mt-10 grid grid-cols-2 gap-8 md:grid-cols-4">
-            {[
-              { name: 'Courses', value: '500+', icon: BookOpenIcon, color: 'bg-orange-500' },
-              { name: 'Students', value: '100K+', icon: UsersIcon, color: 'bg-orange-500' },
-              { name: 'Instructors', value: '200+', icon: AcademicCapIcon, color: 'bg-orange-500' },
-              { name: 'Countries', value: '80+', icon: GlobeAltIcon, color: 'bg-orange-500' },
-            ].map((stat) => (
-              <div key={stat.name} className={`${stat.color} rounded-lg px-6 py-8 text-center text-white shadow-lg transform transition duration-300 hover:-translate-y-1 hover:shadow-xl`}>
-                <stat.icon className="mx-auto h-10 w-10 text-white opacity-80" />
-                <p className="mt-4 text-3xl font-extrabold text-white">{stat.value}</p>
-                <p className="mt-2 text-sm font-medium text-white opacity-80">{stat.name}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Features Section */}
       <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -131,7 +103,7 @@ export default function HomePage() {
                 },
                 {
                   name: "Expert Instructors",
-                  description: "Learn from industry professionals and academic experts",
+                  description: "Learn from professionals and academic experts",
                   icon: AcademicCapIcon,
                   color: "bg-green-500"
                 },
@@ -184,21 +156,21 @@ export default function HomePage() {
                 Student Success Stories
               </h2>
               <p className="mt-3 max-w-3xl text-lg text-gray-500">
-                Hear from our students about their learning experiences.
+                Hear from our students about their experiences.
               </p>
             </div>
             <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:mt-0">
               {[
                 {
                   quote: "NEWSOMA helped me transition into a new career in just 6 months!",
-                  name: "Sarah Johnson",
+                  name: "Serugo Brian",
                   role: "UX Designer",
                   color: "bg-gradient-to-br from-green-500 to-green-600"
                 },
                 {
                   quote: "The quality rivals what I experienced at top universities.",
-                  name: "Michael Chen",
-                  role: "Software Engineer",
+                  name: "Audrey dorcus",
+                  role: "system analyst",
                   color: "bg-gradient-to-br from-orange-500 to-orange-600"
                 },
               ].map((testimonial) => (

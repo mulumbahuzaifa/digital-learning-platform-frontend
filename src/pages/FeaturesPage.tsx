@@ -76,36 +76,10 @@ const plans = [
     color: "gray",
     buttonVariant: "soft"
   },
-  {
-    name: "Premium",
-    price: "$9.99/mo",
-    description: "For dedicated individual learners",
-    features: [
-      "Unlimited access to all courses",
-      "Advanced progress analytics",
-      "Downloadable resources",
-      "Certificate of completion",
-      "Priority support"
-    ],
-    color: "orange",
-    buttonVariant: "solid",
-    highlight: true
-  },
-  {
-    name: "Teams",
-    price: "$24.99/mo",
-    description: "For small teams and organizations",
-    features: [
-      "All Premium features",
-      "Team management dashboard",
-      "Collaborative learning spaces",
-      "Custom learning paths",
-      "Performance reports",
-      "Dedicated account manager"
-    ],
-    color: "green",
-    buttonVariant: "soft"
-  }
+ 
+  
+  
+   
 ];
 
 export default function FeaturesPage() {
@@ -218,54 +192,7 @@ export default function FeaturesPage() {
         </Box>
       </Box>
       
-      {/* Pricing Section */}
-      <Box className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <Heading size="6" align="center" mb="3">Flexible Pricing Plans</Heading>
-        <Text size="4" align="center" color="gray" mb="12" className="max-w-2xl mx-auto">
-          Choose the plan that fits your needs, from individual learners to large organizations
-        </Text>
-        
-        <Grid columns={{ initial: "1", md: "3" }} gap="6">
-          {plans.map((plan) => (
-            <Card 
-              key={plan.name} 
-              size="3" 
-              className={`
-                transition-all duration-300 hover:shadow-lg 
-                ${plan.highlight ? 'border-2 border-orange-500 shadow-lg' : ''}
-              `}
-            >
-              <Flex direction="column" height="100%" p="6">
-                <Badge color={plan.color as any} size="2" mb="2">
-                  {plan.name}
-                </Badge>
-                <Heading size="6" mb="1">{plan.price}</Heading>
-                <Text size="2" color="gray" mb="5">{plan.description}</Text>
-                
-                <Box className="flex-grow">
-                  {plan.features.map((feature, i) => (
-                    <Flex key={i} gap="2" align="center" mb="3">
-                      <CheckCircledIcon className="h-5 w-5 text-green-600" />
-                      <Text size="2">{feature}</Text>
-                    </Flex>
-                  ))}
-                </Box>
-                
-                <Button 
-                  size="3" 
-                  className={`mt-6 ${
-                    plan.buttonVariant === 'solid' 
-                      ? 'bg-orange-500 hover:bg-orange-600' 
-                      : 'bg-green-600 hover:bg-green-700'
-                  }`}
-                >
-                  Get Started
-                </Button>
-              </Flex>
-            </Card>
-          ))}
-        </Grid>
-      </Box>
+
       
       {/* CTA Section */}
       <Box className="bg-gradient-to-r from-green-700 to-green-600 py-16">
