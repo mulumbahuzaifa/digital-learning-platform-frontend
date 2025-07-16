@@ -13,12 +13,12 @@ import {
   Select,
   Text,
   Switch,
-  Box,
 } from "@radix-ui/themes";
 import { useQuery } from "@tanstack/react-query";
 import { classService } from "../../../services/classService";
 import { useLiveSessionMutation } from "../../../hooks/useLiveSessionMutation";
 import { CreateLiveSessionData } from "../../../types";
+import { Class } from "../../../types/class";
 import LoadingSpinner from "../../../components/ui/LoadingSpinner";
 import DateTimePicker from "react-datetime-picker";
 import "react-datetime-picker/dist/DateTimePicker.css";
@@ -51,6 +51,30 @@ const createLiveSessionSchema = z.object({
 
 type FormValues = z.infer<typeof createLiveSessionSchema>;
 
+// Define minimal interfaces for type safety
+interface ClassSubjectData {
+  _id: string;
+  name: string;
+  code?: string;
+}
+
+interface ClassData {
+  class: {
+    _id: string;
+    name: string;
+    code?: string;
+    level?: string;
+    stream?: string;
+  };
+  enrolledStudents: Array<{
+    enrollmentDetails?: {
+      subjects?: Array<{
+        subject: ClassSubjectData;
+      }>;
+    };
+  }>;
+}
+
 const CreateLiveSession = () => {
   const navigate = useNavigate();
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -72,18 +96,59 @@ const CreateLiveSession = () => {
     },
   });
 
-  // Get classes taught by the teacher
-  const { data: classes, isLoading: isLoadingClasses } = useQuery({
+  // Fetch classes the teacher is assigned to
+  const { data: classes, isLoading: isLoadingClasses } = useQuery<ClassData[]>({
     queryKey: ["teacher-classes"],
     queryFn: () => classService.getMyClasses(),
   });
 
+  // Build classOptions with subjects array for each class
+  const classOptions: Class[] = Array.isArray(classes) 
+    ? classes.map((item: ClassData) => {
+        // Deduplicate subjects for this class
+        const subjectMap = new Map<string, ClassSubjectData>();
+        item.enrolledStudents?.forEach((enrollment) => {
+          enrollment.enrollmentDetails?.subjects?.forEach((subj) => {
+            const subject = subj.subject;
+            if (subject && subject._id && !subjectMap.has(subject._id)) {
+              subjectMap.set(subject._id, subject);
+            }
+          });
+        });
+        
+        // Return a class object with a subjects array
+        return {
+          _id: item.class._id,
+          name: item.class.name,
+          code: item.class.code || "",
+          level: item.class.level || "",
+          stream: item.class.stream || "",
+          subjects: Array.from(subjectMap.values()).map((subject) => ({
+            subject: {
+              _id: subject._id,
+              name: subject.name,
+              code: subject.code || "",
+            },
+            teachers: []
+          })),
+          prefects: [],
+          isActive: true,
+          createdAt: "",
+          updatedAt: "",
+        };
+      })
+    : [];
+
   // Get subjects for the selected class
-  const { data: selectedClass, isLoading: isLoadingSubjects } = useQuery({
-    queryKey: ["class", selectedClassId],
-    queryFn: () => classService.getClassById(selectedClassId),
-    enabled: !!selectedClassId,
-  });
+  const availableSubjects = selectedClassId 
+    ? classOptions.find(c => c._id === selectedClassId)?.subjects.map(s => ({
+        _id: s.subject._id,
+        name: s.subject.name,
+        code: s.subject.code || "",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })) || []
+    : [];
 
   const { createLiveSession } = useLiveSessionMutation();
 
@@ -167,7 +232,7 @@ const CreateLiveSession = () => {
               <Select.Content>
                 <Select.Group>
                   <Select.Label>Classes</Select.Label>
-                  {classes?.map((cls) => (
+                  {classOptions.map((cls) => (
                     <Select.Item key={cls._id} value={cls._id}>
                       {cls.name}
                     </Select.Item>
@@ -187,20 +252,26 @@ const CreateLiveSession = () => {
               Subject *
             </Text>
             <Select.Root
-              disabled={!selectedClassId || isLoadingSubjects}
+              disabled={!selectedClassId || availableSubjects.length === 0}
               onValueChange={(value) => setValue("subject", value)}
               value={watch("subject")}
             >
-              <Select.Trigger placeholder="Select a subject" />
+              <Select.Trigger placeholder={
+                !selectedClassId 
+                  ? "Select a class first" 
+                  : availableSubjects.length === 0
+                    ? "No subjects available"
+                    : "Select a subject"
+              } />
               <Select.Content>
                 <Select.Group>
                   <Select.Label>Subjects</Select.Label>
-                  {selectedClass?.subjects?.map((subject) => (
+                  {availableSubjects.map((subject) => (
                     <Select.Item
-                      key={subject.subject._id}
-                      value={subject.subject._id}
+                      key={subject._id}
+                      value={subject._id}
                     >
-                      {subject.subject.name}
+                      {subject.name} {subject.code ? `(${subject.code})` : ''}
                     </Select.Item>
                   ))}
                 </Select.Group>
@@ -252,66 +323,62 @@ const CreateLiveSession = () => {
             )}
           </Flex>
 
-          <Box my="2">
-            <Heading as="h3" size="3" mb="2">
-              Session Settings
-            </Heading>
-            <Flex direction="column" gap="3">
-              <Flex align="center" justify="between">
-                <Text as="label" size="2">
-                  Enable Chat
-                </Text>
-                <Controller
-                  control={control}
-                  name="enableChat"
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-              </Flex>
+          <Heading size="4">Session Settings</Heading>
 
-              <Flex align="center" justify="between">
-                <Text as="label" size="2">
-                  Enable Recording
-                </Text>
-                <Controller
-                  control={control}
-                  name="enableRecording"
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-              </Flex>
-
-              <Flex align="center" justify="between">
-                <Text as="label" size="2">
-                  Enable Screen Sharing
-                </Text>
-                <Controller
-                  control={control}
-                  name="enableScreenSharing"
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-              </Flex>
+          <Flex direction="column" gap="3">
+            <Flex align="center" justify="between">
+              <Text as="label" size="2" weight="bold">
+                Enable Chat
+              </Text>
+              <Controller
+                control={control}
+                name="enableChat"
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
             </Flex>
-          </Box>
+
+            <Flex align="center" justify="between">
+              <Text as="label" size="2" weight="bold">
+                Enable Recording
+              </Text>
+              <Controller
+                control={control}
+                name="enableRecording"
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+            </Flex>
+
+            <Flex align="center" justify="between">
+              <Text as="label" size="2" weight="bold">
+                Enable Screen Sharing
+              </Text>
+              <Controller
+                control={control}
+                name="enableScreenSharing"
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+            </Flex>
+          </Flex>
 
           <Flex gap="3" mt="4" justify="end">
             <Button
               type="button"
               variant="soft"
-              color="gray"
               onClick={() => navigate("/teacher/live-sessions")}
             >
               Cancel

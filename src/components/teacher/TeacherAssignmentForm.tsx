@@ -14,7 +14,7 @@ import {
   TextArea,
   RadioGroup
 } from '@radix-ui/themes';
-import { AssignmentStatus, Subject } from "../../types";
+import { Subject } from "../../types";
 import { Class } from "../../types/class";
 import { useState, useEffect } from "react";
 
@@ -41,7 +41,7 @@ export type EditAssignmentFormData = z.infer<typeof editAssignmentSchema>;
 interface TeacherAssignmentFormProps {
   mode: "create" | "edit";
   initialData?: EditAssignmentFormData;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: CreateAssignmentFormData | EditAssignmentFormData) => Promise<void>;
   isSubmitting: boolean;
   classes: Class[];
   subjects: Subject[];
@@ -59,7 +59,7 @@ const TeacherAssignmentForm = ({
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>(subjects || []);
   
   // Default schema based on mode
-  const schema = mode === "create" ? createAssignmentSchema : editAssignmentSchema;
+  const formType = mode === "create" ? createAssignmentSchema : editAssignmentSchema;
   
   // Use the correct form type based on mode
   const {
@@ -69,8 +69,8 @@ const TeacherAssignmentForm = ({
     setValue,
     watch,
     reset,
-  } = useForm({
-    resolver: zodResolver(schema),
+  } = useForm<typeof mode extends "edit" ? EditAssignmentFormData : CreateAssignmentFormData>({
+    resolver: zodResolver(formType),
     defaultValues: initialData || {
       title: "",
       description: "",
@@ -81,84 +81,51 @@ const TeacherAssignmentForm = ({
       instructions: "",
       allowLateSubmissions: false,
       visibleToStudents: true,
-      ...(mode === "edit" && { status: "draft" }),
+      ...(mode === "edit" ? { status: "draft" as const } : {}),
     },
-  } as any); // Type assertion to avoid resolver mismatch
+  });
 
   const selectedClass = watch("class");
-  const selectedStatus = watch("status");
+  const selectedStatus = mode === "edit" ? watch("status") : undefined;
   const visibleToStudents = watch("visibleToStudents");
-  
-  // Function to set tomorrow as the default due date
-  const setDefaultDueDate = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(23, 59);
-    
-    const formattedDate = tomorrow.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
-    setValue("dueDate", formattedDate);
-  };
   
   // Set default due date on initial render for create mode
   useEffect(() => {
+    // Function to set tomorrow as the default due date
+    const setDefaultDueDate = () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(23, 59);
+      
+      const formattedDate = tomorrow.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+      setValue("dueDate", formattedDate);
+    };
     if (mode === "create" && !initialData?.dueDate) {
       setDefaultDueDate();
     }
-  }, [mode, initialData]);
+  }, [mode, initialData, setValue]);
   
   // Load subjects based on selected class
   useEffect(() => {
     if (selectedClass && classes.length > 0) {
       const selectedClassObj = classes.find(c => c._id === selectedClass);
-      
-      if (selectedClassObj && selectedClassObj.subjects && subjects && subjects.length > 0) {
-        // Filter subjects based on the selected class and the teacher's authorized subjects
-        const authorizedSubjects = [];
-        let includesCurrentSubject = false;
-        const currentSubject = watch("subject");
-        
-        // Loop through each subject in the selected class
-        for (const classSubject of selectedClassObj.subjects) {
-          // Get the subject ID
-          const subjectId = typeof classSubject.subject === 'string' 
-            ? classSubject.subject 
-            : classSubject.subject._id;
-          
-          // Check if this is the currently assigned subject
-          if (currentSubject && currentSubject === subjectId) {
-            includesCurrentSubject = true;
-          }
-          
-          // Check if this teacher is assigned to teach this subject
-          const isAssignedTeacher = classSubject.teachers && 
-            classSubject.teachers.some(teacher => teacher.status === 'approved');
-          
-          // Find the full subject details from the subjects array
-          const subjectDetails = subjects.find(s => s._id === subjectId);
-          
-          // Only include subjects where the teacher is authorized
-          if (isAssignedTeacher && subjectDetails) {
-            authorizedSubjects.push(subjectDetails);
-          }
-        }
-        
-        // If we're in edit mode and the current subject isn't in the authorized subjects
-        // but it is assigned to this assignment, find and add it to the available subjects
-        if (mode === "edit" && currentSubject && !includesCurrentSubject) {
-          const subjectDetails = subjects.find(s => s._id === currentSubject);
-          if (subjectDetails) {
-            authorizedSubjects.push(subjectDetails);
-          }
-        }
-        
-        setAvailableSubjects(authorizedSubjects);
+      if (selectedClassObj && selectedClassObj.subjects && selectedClassObj.subjects.length > 0) {
+        // Convert ClassSubject[] to Subject[]
+        const subjectList = selectedClassObj.subjects.map(cs => ({
+          _id: typeof cs.subject === 'string' ? cs.subject : cs.subject._id,
+          name: typeof cs.subject === 'string' ? cs.subject : cs.subject.name,
+          code: typeof cs.subject === 'string' ? '' : cs.subject.code || '',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }));
+        setAvailableSubjects(subjectList);
       } else {
         setAvailableSubjects([]);
       }
     } else {
       setAvailableSubjects([]);
     }
-  }, [selectedClass, classes, subjects, mode, watch]);
+  }, [selectedClass, classes]);
 
   // Clear subject selection when class changes (only in create mode)
   useEffect(() => {
@@ -167,9 +134,31 @@ const TeacherAssignmentForm = ({
       setValue("subject", "");
     }
   }, [selectedClass, setValue, mode]);
+
+  console.log("Available Classes:", classes);
+  console.log("Available Subjects:", availableSubjects);
+  
+  // Create a type-safe submission handler
+  const handleFormSubmit = (formData: CreateAssignmentFormData | EditAssignmentFormData) => {
+    // Transform form data for backend
+    const payload = {
+      ...formData,
+      dueDate: new Date(formData.dueDate).toISOString(),
+      class: formData.class,
+      subject: formData.subject,
+    };
+    console.log('Submitting assignment payload:', payload);
+    
+    // Type assertion based on mode
+    if (mode === "edit" && 'status' in formData) {
+      onSubmit(payload as EditAssignmentFormData);
+    } else {
+      onSubmit(payload as CreateAssignmentFormData);
+    }
+  };
   
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={handleSubmit(handleFormSubmit)}>
       <Flex direction="column" gap="5">
         {/* Basic Information */}
         <Card>
@@ -373,7 +362,7 @@ const TeacherAssignmentForm = ({
                 </Text>
                 <Select.Root
                   value={selectedStatus}
-                  onValueChange={(value: AssignmentStatus) => setValue("status", value)}
+                  onValueChange={(value) => setValue("status", value as "draft" | "published" | "archived")}
                 >
                   <Select.Trigger variant="soft" />
                   <Select.Content>
@@ -385,9 +374,9 @@ const TeacherAssignmentForm = ({
                     </Select.Group>
                   </Select.Content>
                 </Select.Root>
-                {errors.status && (
+                {/* {errors.status && (
                   <Text size="1" color="red">{errors.status.message as string}</Text>
-                )}
+                )} */}
               </Flex>
             )}
           </Flex>

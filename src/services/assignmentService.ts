@@ -6,7 +6,6 @@ import {
   AssignmentFilterParams,
   Submission,
   CreateSubmissionData,
-  UpdateSubmissionData,
 } from "../types";
 
 export const assignmentService = {
@@ -38,86 +37,60 @@ export const assignmentService = {
 
   // Create assignment
   async createAssignment(data: CreateAssignmentData): Promise<Assignment> {
-    const formData = new FormData();
-
-    // Append basic fields
-    Object.entries(data).forEach(([key, value]) => {
-      if (key === "attachments") {
-        // Handle attachments separately
-        return;
-      }
-      if (value !== undefined) {
-        if (typeof value === "object") {
-          formData.append(key, JSON.stringify(value));
-        } else {
-          formData.append(key, value.toString());
-        }
-      }
-    });
-
-    // Handle attachments if present
-    if (data.attachments) {
-      data.attachments.forEach((attachment, index) => {
-        if (attachment.type === "file" && attachment.path) {
-          formData.append(`attachments[${index}]`, attachment.path);
-        } else if (attachment.type === "link") {
-          formData.append(`attachments[${index}]`, JSON.stringify(attachment));
-        }
-      });
-    }
-
-    const response = await api.post("/assignments", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post("/assignments", data); // No FormData
     return response.data.data;
   },
+  // async createAssignment(data: CreateAssignmentData): Promise<Assignment> {
+  //   const formData = new FormData();
+
+  //   // Append basic fields
+  //   Object.entries(data).forEach(([key, value]) => {
+  //     if (key === "attachments") {
+  //       // Handle attachments separately
+  //       return;
+  //     }
+  //     if (value !== undefined) {
+  //       if (typeof value === "object") {
+  //         formData.append(key, JSON.stringify(value));
+  //       } else {
+  //         formData.append(key, value.toString());
+  //       }
+  //     }
+  //   });
+
+  //   // Handle attachments if present
+  //   if (data.attachments) {
+  //     data.attachments.forEach((attachment, index) => {
+  //       if (attachment.type === "file" && attachment.path) {
+  //         formData.append(`attachments[${index}]`, attachment.path);
+  //       } else if (attachment.type === "link") {
+  //         formData.append(`attachments[${index}]`, JSON.stringify(attachment));
+  //       }
+  //     });
+  //   }
+
+  //   const response = await api.post("/assignments", formData, {
+  //     headers: {
+  //       "Content-Type": "multipart/form-data",
+  //     },
+  //   });
+  //   return response.data.data;
+  // },
 
   // Update assignment
   async updateAssignment(
     id: string,
     data: UpdateAssignmentData
   ): Promise<Assignment> {
-    const formData = new FormData();
-
-    // Append basic fields
-    Object.entries(data).forEach(([key, value]) => {
-      if (key === "attachments") {
-        // Handle attachments separately
-        return;
-      }
-      if (value !== undefined) {
-        if (typeof value === "object") {
-          formData.append(key, JSON.stringify(value));
-        } else {
-          formData.append(key, value.toString());
-        }
-      }
-    });
-
-    // Handle attachments if present
-    if (data.attachments) {
-      data.attachments.forEach((attachment, index) => {
-        if (attachment.type === "file" && attachment.path) {
-          formData.append(`attachments[${index}]`, attachment.path);
-        } else if (attachment.type === "link") {
-          formData.append(`attachments[${index}]`, JSON.stringify(attachment));
-        }
-      });
-    }
-
-    const response = await api.put(`/assignments/${id}`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    // Send as JSON, not FormData
+    const response = await api.put(`/assignments/${id}`, data);
     return response.data.data;
   },
 
   // Publish assignment
-  async publishAssignment(id: string): Promise<Assignment> {
-    const response = await api.put(`/assignments/${id}/publish`);
+  async publishAssignment(id: string, data: UpdateAssignmentData): Promise<Assignment> {
+    // const response = await api.put(`/assignments/${id}/publish`);
+    const response = await api.put(`/assignments/${id}`, data);
     return response.data.data;
   },
 
